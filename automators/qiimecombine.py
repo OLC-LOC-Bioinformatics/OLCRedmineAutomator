@@ -71,10 +71,22 @@ def qiimecombine_redmine(redmine_instance, issue, work_dir, description):
             for j in range(len(column_headers)):
                 column_header = column_headers[j]
                 column_content = column_contents[j]
-                if operators[j] == 'equals':
-                    df = df.loc[df[column_header] == column_content]
-                elif operators[j] == 'contains':
-                    df = df.loc[df[column_header].str.contains(column_content)]
+                # Adding option for comma to specify multiple matching values
+                if "," in column_content:
+                        subcontent = column_content.split(",")
+                        if operators[j] == 'equals':
+                                df = df[df[column_header].isin(subcontent)]
+                        elif operators[j] == 'contains':
+                                # This will be inefficient...
+                                subdf = df.loc[df[column_header].str.contains(subcontent[0])]
+                                for c in subcontent[1:]:
+                                        subdf = subdf.append(df.loc[df[column_header].str.contains(c)])
+                                df = subdf.drop_duplicates()
+                else:
+                        if operators[j] == 'equals':
+                                    df = df.loc[df[column_header] == column_content]
+                        elif operators[j] == 'contains':
+                                    df = df.loc[df[column_header].str.contains(column_content)]
             dataframe_list.append(df)
         except KeyError:
             redmine_instance.issue.update(resource_id=issue.id,
@@ -92,8 +104,9 @@ def qiimecombine_redmine(redmine_instance, issue, work_dir, description):
     for column in result_df.columns:
         all_zeros = True
         for item in result_df[column]:
-            if str(item) != '0':
+            if not str(item) == "0" and not str(item) == "0.0":
                 all_zeros = False
+                break
         if all_zeros is True:
             columns_to_drop.append(column)
 
