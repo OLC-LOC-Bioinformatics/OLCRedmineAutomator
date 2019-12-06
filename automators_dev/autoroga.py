@@ -645,7 +645,7 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
 
                         # ID
                         # lsts_id = df.loc[df['SeqID'] == sample_id]['SampleName'].values[0]
-                        lsts_id = seq_lsts_dict[sample_id]
+                        lsts_id = pl.NoEscape(r'' + seq_lsts_dict[sample_id].replace(' ', '\\newline '))
 
                         # MLST/rMLST
                         mlst = str(df.loc[df['SeqID'] == sample_id]['MLST_Result'].values[0]).replace('-', 'New')
@@ -820,10 +820,34 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
                 table.add_hline()
 
         # PIPELINE METADATA TABLE
-        pipeline_metadata_columns = (bold('ID'),
+#        pipeline_metadata_columns = (bold('ID'),
+#                                     bold('Seq ID'),
+#                                     bold('Pipeline Version'),
+#                                     bold('Database Version'))
+        # if all of the IDs have a database date column, then add that to the next table
+        add_date_column = True
+        for sample_id, df in metadata_reports.items():
+            try:
+                if df.loc[df['SeqID'] == sample_id]['PipelineDate'].values[0] == "":
+                    add_date_column = False
+                    break
+            except:
+                add_date_column = False
+                break
+        if add_date_column:
+            pipeline_metadata_columns = (bold('ID'),
+                                     bold('Seq ID'),
+                                     bold('Pipeline Version'),
+                                     bold('Database Version'),
+                                     bold('Pipeline Date'))
+            columnspec = pl.Tabular('|c|c|c|c|c|')
+        else:
+            pipeline_metadata_columns = (bold('ID'),
                                      bold('Seq ID'),
                                      bold('Pipeline Version'),
                                      bold('Database Version'))
+            columnspec = pl.Tabular('|c|c|c|c|')
+
 
         with doc.create(pl.Subsection('Pipeline Metadata', numbering=False)):
             with doc.create(pl.Tabular('|c|c|c|c|')) as table:
@@ -840,11 +864,22 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
                     lsts_id = seq_lsts_dict[sample_id]
 
                     # Pipeline version
-                    pipeline_version = df.loc[df['SeqID'] == sample_id]['PipelineVersion'].values[0]
-                    database_version = pipeline_version
+                    try:
+                        pipeline_version = df.loc[df['SeqID'] == sample_id]['PipelineCommit'].values[0]
+                    except:
+                        pipeline_version = df.loc[df['SeqID'] == sample_id]['PipelineVersion'].values[0]
+                    try:
+                        database_version = df.loc[df['SeqID'] == sample_id]['Database'].values[0]
+                    except:
+                        database_version = pipeline_version
 
                     # Add row
-                    table.add_row((lsts_id, sample_id, pipeline_version, database_version))
+                    if add_date_column:
+                        pipeline_date = df.loc[df['SeqID'] == sample_id]['PipelineDate'].values[0]
+                        table.add_row((lsts_id, sample_id, pipeline_version, database_version, pipeline_date))
+                    else:
+                        table.add_row((lsts_id, sample_id, pipeline_version, database_version))
+
 
                 table.add_hline()
 
