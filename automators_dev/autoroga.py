@@ -527,7 +527,7 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
                                        )
 
             with doc.create(pl.Subsection('GeneSeekr Analysis', numbering=False)) as genesippr_section:
-                with doc.create(pl.Tabular('|c|c|c|c|c|c|c|c|c|')) as table:
+                with doc.create(pl.Tabularx('|X|c|c|c|c|c|c|c|c|')) as table:
                     # Header
                     table.add_hline()
                     table.add_row(genesippr_table_columns)
@@ -634,7 +634,7 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
                                        )
 
             with doc.create(pl.Subsection('GeneSeekr Analysis', numbering=False)) as genesippr_section:
-                with doc.create(pl.Tabular('|c|p{2cm}|c|c|c|c|c|c|c|')) as table:
+                with doc.create(pl.Tabularx('|X|p{2cm}|c|c|c|c|c|c|c|')) as table:
                     # Header
                     table.add_hline()
                     table.add_row(genesippr_table_columns)
@@ -700,20 +700,20 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
         amr_samples = []  # keep track of which samples to create rows for
 
         # Grab AMR profile as a pre-check to see if we should even create the AMR Profile table
-        for sample_id, df in metadata_reports.items():
-            profile = df.loc[df['SeqID'] == sample_id]['AMR_Profile'].values[0]
-            parsed_profile = extract_report_data.parse_amr_profile(profile)
-            if parsed_profile is not None:
-                if genus == 'Salmonella':
-                    amr_samples.append(sample_id)
-                    create_amr_profile = True
-                elif genus == 'Escherichia':
-                    if sample_id in vt_sample_list:  # vt_sample_list contains all vt+ sample IDs
-                        amr_samples.append(sample_id)
-                        create_amr_profile = True
-                elif genus == 'Vibrio':
-                    amr_samples.append(sample_id)
-                    create_amr_profile = True
+#        for sample_id, df in metadata_reports.items():
+#            profile = df.loc[df['SeqID'] == sample_id]['AMR_Profile'].values[0]
+#            parsed_profile = extract_report_data.parse_amr_profile(profile)
+#            if parsed_profile is not None:
+#                if genus == 'Salmonella':
+#                    amr_samples.append(sample_id)
+#                    create_amr_profile = True
+#                elif genus == 'Escherichia':
+#                    if sample_id in vt_sample_list:  # vt_sample_list contains all vt+ sample IDs
+#                        amr_samples.append(sample_id)
+#                        create_amr_profile = True
+#                elif genus == 'Vibrio':
+#                    amr_samples.append(sample_id)
+#                    create_amr_profile = True
 
         # Create table
         if (genus == 'Salmonella' or some_vt is True or genus == 'Vibrio') and create_amr_profile is True:
@@ -872,12 +872,30 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
     return pdf_file, idiot_proofing_list
 
 
+def pubmlst(seqid, assembly):
+    # sort of stolen from code written by Keith Jolley
+    uri = 'http://rest.pubmlst.org/db/pubmlst_rmlst_seqdef_kiosk/schemes/1/sequence'
+    with open(assembly, 'r') as x:
+        fasta = x.read()
+    payload = '{"base64":true,"details":true,"sequence":"' + base64.b64encode(fasta.encode()).decode() + '"}'
+    response = requests.post(uri, data=payload)
+    if response.status_code == requests.codes.ok:
+        data = response.json()
+        try:
+            print(data['fields']['rST'])
+        except KeyError:
+            print("No match")
+            sys.exit(0)
+    else:
+        print(response.text)
+
+
 def parse_seqid_list(description, starting_row=3):
     seqids = list()
     lstsids = list()
 
     # Remove whitespace
-    description = [x.replace(' ', '') for x in description]
+    # description = [x.replace(' ', '') for x in description]
 
     try:
         for item in description[starting_row:]:
@@ -894,7 +912,7 @@ def parse_seqid_list(description, starting_row=3):
                 seqid_item = item.split(';')[0]
                 lstsid_item = item.split(';')[1]
 
-            seqid_item = seqid_item.upper().strip()
+            seqid_item = seqid_item.upper().strip().replace(' ', '')
             lstsid_item = lstsid_item.upper().strip()
 
             if seqid_item != '':
