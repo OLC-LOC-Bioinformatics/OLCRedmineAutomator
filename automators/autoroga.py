@@ -68,7 +68,7 @@ def redmine_roga(redmine_instance, issue, work_dir, description):
     if issue.author.id not in permitted_users:
         redmine_instance.issue.update(resource_id=issue.id, status_id=4,
                                       notes='ERROR: Only authorized users are allowed to submit autoROGA requests.'
-                                            'If you think you should be authorized, please contact andrew.low@canada.ca')
+                                            'If you think you should be authorized, please contact julie.shay@canada.ca')
         quit()
 
     # Setup
@@ -538,7 +538,7 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
                                        )
 
             with doc.create(pl.Subsection('GeneSeekr Analysis', numbering=False)) as genesippr_section:
-                with doc.create(pl.Tabular('|c|c|c|c|c|c|c|c|c|')) as table:
+                with doc.create(pl.Tabularx('|X|c|c|c|c|c|c|c|c|')) as table:
                     # Header
                     table.add_hline()
                     table.add_row(genesippr_table_columns)
@@ -645,7 +645,7 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
                                        )
 
             with doc.create(pl.Subsection('GeneSeekr Analysis', numbering=False)) as genesippr_section:
-                with doc.create(pl.Tabular('|c|p{2cm}|c|c|c|c|c|c|c|')) as table:
+                with doc.create(pl.Tabularx('|X|p{2cm}|c|c|c|c|c|c|c|')) as table:
                     # Header
                     table.add_hline()
                     table.add_row(genesippr_table_columns)
@@ -656,8 +656,7 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
 
                         # ID
                         # lsts_id = df.loc[df['SeqID'] == sample_id]['SampleName'].values[0]
-                        lsts_id = seq_lsts_dict[sample_id]
-
+                        lsts_id = pl.NoEscape(r'' + seq_lsts_dict[sample_id].replace(' ', '\\newline '))
                         # MLST/rMLST
                         mlst = str(df.loc[df['SeqID'] == sample_id]['MLST_Result'].values[0]).replace('-', 'New')
                         rmlst = str(df.loc[df['SeqID'] == sample_id]['rMLST_Result'].values[0]).replace('-', 'New')
@@ -708,23 +707,25 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
 
         # AMR TABLE (VTEC and Salmonella only)
         create_amr_profile = False  # only create if an AMR profile exists for one of the provided samples
-        amr_samples = []  # keep track of which samples to create rows for
+# FSSSC or whatever the acronym is doesn't want to see AMR results,
+# so I'm commenting this out for now.
+#        amr_samples = []  # keep track of which samples to create rows for
 
         # Grab AMR profile as a pre-check to see if we should even create the AMR Profile table
-        for sample_id, df in metadata_reports.items():
-            profile = df.loc[df['SeqID'] == sample_id]['AMR_Profile'].values[0]
-            parsed_profile = extract_report_data.parse_amr_profile(profile)
-            if parsed_profile is not None:
-                if genus == 'Salmonella':
-                    amr_samples.append(sample_id)
-                    create_amr_profile = True
-                elif genus == 'Escherichia':
-                    if sample_id in vt_sample_list:  # vt_sample_list contains all vt+ sample IDs
-                        amr_samples.append(sample_id)
-                        create_amr_profile = True
-                elif genus == 'Vibrio':
-                    amr_samples.append(sample_id)
-                    create_amr_profile = True
+#        for sample_id, df in metadata_reports.items():
+#            profile = df.loc[df['SeqID'] == sample_id]['AMR_Profile'].values[0]
+#            parsed_profile = extract_report_data.parse_amr_profile(profile)
+#            if parsed_profile is not None:
+#                if genus == 'Salmonella':
+#                    amr_samples.append(sample_id)
+#                    create_amr_profile = True
+#                elif genus == 'Escherichia':
+#                    if sample_id in vt_sample_list:  # vt_sample_list contains all vt+ sample IDs
+#                        amr_samples.append(sample_id)
+#                        create_amr_profile = True
+#                elif genus == 'Vibrio':
+#                    amr_samples.append(sample_id)
+#                    create_amr_profile = True
 
         # Create table
         if (genus == 'Salmonella' or some_vt is True or genus == 'Vibrio') and create_amr_profile is True:
@@ -851,8 +852,14 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
                     lsts_id = seq_lsts_dict[sample_id]
 
                     # Pipeline version
-                    pipeline_version = df.loc[df['SeqID'] == sample_id]['PipelineVersion'].values[0]
-                    database_version = pipeline_version
+                    try:
+                        pipeline_version = df.loc[df['SeqID'] == sample_id]['PipelineCommit'].values[0]
+                    except:
+                        pipeline_version = df.loc[df['SeqID'] == sample_id]['PipelineVersion'].values[0]
+                    try:
+                        database_version = df.loc[df['SeqID'] == sample_id]['Database'].values[0]
+                    except:
+                        database_version = pipeline_version
 
                     # Add row
                     table.add_row((lsts_id, sample_id, pipeline_version, database_version))
@@ -888,7 +895,7 @@ def parse_seqid_list(description, starting_row=3):
     lstsids = list()
 
     # Remove whitespace
-    description = [x.replace(' ', '') for x in description]
+    # description = [x.replace(' ', '') for x in description]
 
     try:
         for item in description[starting_row:]:
@@ -905,7 +912,7 @@ def parse_seqid_list(description, starting_row=3):
                 seqid_item = item.split(';')[0]
                 lstsid_item = item.split(';')[1]
 
-            seqid_item = seqid_item.upper().strip()
+            seqid_item = seqid_item.upper().strip().replace(' ', '')
             lstsid_item = lstsid_item.upper().strip()
 
             if seqid_item != '':
