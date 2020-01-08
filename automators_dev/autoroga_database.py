@@ -86,7 +86,7 @@ def update_db(date, year, genus, lab, source, amendment_flag, amended_id):
         else:
             roga_id_found = True
 
-    roga_id = year + '-ROGA-DEV-' + '{:04d}'.format(i)
+    roga_id = str(year) + '-ROGA-DEV-' + '{:04d}'.format(i)
 
     # Insert new row into autoroga_project_table table
     ins = autoroga_project_table.insert().values(roga_id=roga_id, genus=genus, date=date, lab=lab, source=source,
