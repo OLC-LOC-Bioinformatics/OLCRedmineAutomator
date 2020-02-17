@@ -549,8 +549,8 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
 
                         # ID
                         # lsts_id = df.loc[df['SeqID'] == sample_id]['SampleName'].values[0]
-                        lsts_id = seq_lsts_dict[sample_id]
-
+                        lsts_id = pl.NoEscape(r'' + seq_lsts_dict[sample_id].replace(' ', '\\newline '))
+ 
                         # Genus (pulled from 16S)
                         genus = df.loc[df['SeqID'] == sample_id]['Genus'].values[0]
 
@@ -645,7 +645,7 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
                                        )
 
             with doc.create(pl.Subsection('GeneSeekr Analysis', numbering=False)) as genesippr_section:
-                with doc.create(pl.Tabularx('|X|p{2cm}|c|c|c|c|c|c|c|')) as table:
+                with doc.create(pl.Tabularx('|X|p{2.3cm}|c|c|c|c|c|c|c|')) as table:
                     # Header
                     table.add_hline()
                     table.add_row(genesippr_table_columns)
