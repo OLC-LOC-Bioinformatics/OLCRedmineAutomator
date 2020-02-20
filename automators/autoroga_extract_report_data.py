@@ -62,7 +62,9 @@ def get_gdcs(seq_list):
     """
     # Grab every single GDCS.csv file we have
     gdcs_reports = glob.glob(os.path.join(ASSEMBLIES_FOLDER, '*/reports/GDCS.csv'))
+    gdcs_reports += glob.glob(os.path.join(ASSEMBLIES_FOLDER, '*/reports/gdcs.csv')) 
     gdcs_reports += glob.glob(os.path.join(MERGED_ASSEMBLIES_FOLDER, '*/reports/GDCS.csv'))
+    gdcs_reports += glob.glob(os.path.join(MERGED_ASSEMBLIES_FOLDER, '*/reports/gdcs.csv'))
     gdcs_report_dict = create_report_dictionary(report_list=gdcs_reports, seq_list=seq_list, id_column='Strain')
     return gdcs_report_dict
 
@@ -293,7 +295,23 @@ def generate_gdcs_dict(gdcs_reports):
     """
     gdcs_dict = {}
     for sample_id, df in gdcs_reports.items():
-        matches = df.loc[df['Strain'] == sample_id]['Matches'].values[0]
-        passfail = df.loc[df['Strain'] == sample_id]['Pass/Fail'].values[0]
+        try:
+            matches = df.loc[df['Strain'] == sample_id]['TotalCore'].values[0]
+        except:
+            try:
+                matches = df.loc[df['Strain'] == sample_id]['Matches'].values[0]
+            except:
+                print("Couldn't find GDCs matches for " + sample_id)
+        try:
+            passfail = df.loc[df['Strain'] == sample_id]['Pass/Fail'].values[0]
+        except:
+            fraction = matches.split('/')
+            try:
+                if float(fraction[0]) >= (float(fraction[1]) * 0.9):
+                    passfail = "+"
+                else:
+                    passfail = "-"
+            except:
+                print("GDCS matches is not a fraction--" + str(matches))
         gdcs_dict[sample_id] = (matches, passfail)
     return gdcs_dict
