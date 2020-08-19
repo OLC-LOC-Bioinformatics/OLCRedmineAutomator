@@ -35,7 +35,7 @@ def reportretrieve_redmine(redmine_instance, issue, work_dir, description):
 
         report_path_list = list()
         # Go through CombinedMetadata sheets to find which folders we need to copy to FTP.
-        metadata_sheets = glob.glob('/mnt/nas2/processed_sequence_data/miseq_assemblies/*/reports/combinedMetadata.csv')
+        metadata_sheets = glob.glob('/mnt/nas2/processed_sequence_data/*/*/reports/combinedMetadata.csv')
 
         for metadata_sheet in metadata_sheets:
             with open(metadata_sheet) as csvfile:
