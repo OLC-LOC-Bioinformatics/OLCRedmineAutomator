@@ -4,6 +4,7 @@ import os
 import glob
 import click
 import pickle
+import shutil
 import subprocess
 from biotools import mash
 from strainchoosr import strainchoosr
@@ -57,6 +58,15 @@ def diversitree_redmine(redmine_instance, issue, work_dir, description):
                            outdir=os.path.join(work_dir, 'fastas'),
                            filetype='fasta',
                            copyflag=False)
+        # Download the attached FASTA file.
+        # First, get the attachment id - this seems like a kind of hacky way to do this, but I have yet to figure
+        # out a better way to do it.
+        attachment = redmine_instance.issue.get(issue.id, include='attachments')
+        for item in attachment.attachments:
+            # Download if attachment id is not 0, which indicates that we didn't find anything attached to the issue.
+            if item.id != 0:
+                attachment = redmine_instance.attachment.get(item.id)
+                attachment.download(os.path.join(work_dir, 'fastas'), filename=item.filename)
         # Run a mash to figure out if any strains are particularly far apart and likely to make PARSNP fail.
         reference_file = glob.glob(os.path.join(work_dir, 'fastas', '*.fasta'))[0]
         bad_fastas = check_distances(reference_file, os.path.join(work_dir, 'fastas'))
@@ -82,14 +92,16 @@ def diversitree_redmine(redmine_instance, issue, work_dir, description):
 
         # Full paths needed here since SLURM doesn't give the $PATH of the host machine to the script for some reason
         if treemaker == 'parsnp':
-            cmd = '/mnt/nas/Programs/Parsnp-Linux64-v1.2/parsnp -r ! -d {input} -o {output} -p {threads}'.format(input=os.path.join(work_dir, 'fastas'),
-                                                                           output=os.path.join(work_dir, 'output'),
-                                                                           threads=24)
+            cmd = '/mnt/nas2/virtual_environments/mob_suite/bin/parsnp -r ! -d {input} -o {output} -p {threads}'\
+                .format(input=os.path.join(work_dir, 'fastas'),
+                        output=os.path.join(work_dir, 'output'),
+                        threads=24)
         elif treemaker == 'mashtree':
             if not os.path.isdir(os.path.join(work_dir, 'output')):
                 os.makedirs(os.path.join(work_dir, 'output'))
-            cmd = '/home/ubuntu/bin/mashtree --numcpus 24 --outtree {output_newick} {input_fastas}'.format(output_newick=os.path.join(work_dir, 'output', 'parsnp.tree'),
-                                                                                   input_fastas=os.path.join(work_dir, 'fastas', '*.fasta'))
+            cmd = '/home/ubuntu/bin/mashtree --numcpus 24 --outtree {output_newick} {input_fastas}'\
+                .format(output_newick=os.path.join(work_dir, 'output', 'parsnp.tree'),
+                        input_fastas=os.path.join(work_dir, 'fastas', '*.fasta'))
         returncode = subprocess.call(cmd, shell=True, env={'PERL5LIB': '$PERL5LIB:/home/ubuntu/lib/perl5'})
         if returncode != 0:
             raise Exception('Tree creation command ({}) for {} had return code {}'.format(cmd, issue.id, returncode))
@@ -114,8 +126,15 @@ def diversitree_redmine(redmine_instance, issue, work_dir, description):
         output_list.append(output_dict)
         redmine_instance.issue.update(resource_id=issue.id, uploads=output_list, status_id=4,
                                       notes='DiversiTree process complete!')
-        os.system('rm {fasta_files}'.format(fasta_files=os.path.join(work_dir, '*fasta')))
+        try:
+            shutil.rmtree(os.path.join(work_dir, 'fastas'))
+        except FileNotFoundError:
+            pass
     except Exception as e:
+        try:
+            shutil.rmtree(os.path.join(work_dir, 'fastas'))
+        except FileNotFoundError:
+            pass
         redmine_instance.issue.update(resource_id=issue.id,
                                       notes='Something went wrong! Send this error traceback to your friendly '
                                             'neighborhood bioinformatician: {}'.format(e))
