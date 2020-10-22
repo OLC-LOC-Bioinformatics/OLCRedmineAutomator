@@ -164,13 +164,9 @@ class MassExtractor(object):
                 # Very occasionally genome_size will get set to None. If that's the case, just assume a 5MB genome.
                 if genome_size is None:
                     genome_size = 5000000
-                samplebasestarget = genome_size * 200
-                cmd = 'reformat.sh in={forward_reads} in2={reverse_reads} out=\'{forward_out}\' out2=\'{reverse_out}\' ' \
-                  'samplebasestarget={samplebasestarget}'.format(forward_reads=forward_reads,
-                                                                 reverse_reads=reverse_reads,
-                                                                 forward_out=forward_out,
-                                                                 reverse_out=reverse_out,
-                                                                 samplebasestarget=samplebasestarget)
+                samplereadstarget = int(float(genome_size) * (1.0 / 3.0))
+                sqtk = os.path.relpath("/mnt/nas/users/julie/seqtk/seqtk")
+                cmd = '{sqtk} sample -s100 {forward_reads} {samplereadstarget} | gzip > {forward_out} && {sqtk} sample -s100 {reverse_reads} {samplereadstarget} | gzip > {reverse_out}'.format(sqtk=sqtk, forward_reads=forward_reads, reverse_reads=reverse_reads, forward_out=forward_out, reverse_out=reverse_out, samplereadstarget=samplereadstarget)
             else:
                 cmd = 'cp {forward_reads} {forward_out} && cp {reverse_reads} {reverse_out}'.format(forward_reads=forward_reads, forward_out=forward_out, reverse_reads=reverse_reads, reverse_out=reverse_out)
             print(cmd)
@@ -218,6 +214,22 @@ def check_depth(forward_reads):
                 return 9001
         else:
             return 9002
+    elif forward_reads.startswith("/mnt/nas2/raw_sequence_data/merged_sequences"):
+        samplename = forward_reads.split("/")[5].split("_", 1)[0]
+        files_to_check = os.path.join('/mnt/nas2/processed_sequence_data/merged_assemblies/*/reports/combinedMetadata.csv*')
+        for metafile in glob.iglob(files_to_check):
+            if os.path.isfile(metafile):
+                with open(metafile) as f:
+                    lines = f.readlines()
+                try:
+                    cols = lines[0].split(",")
+                    colofinterest = [c for c in range(len(cols) - 1) if cols[c] == "AverageCoverageDepth"][0]
+                    for line in lines:
+                        if line.startswith(samplename + ","):
+                            return float(line.split(",")[colofinterest])
+                            break
+                except:
+                    return 9001
     else:
         return 9003 
 
@@ -229,28 +241,44 @@ def check_genome_size(forward_reads, reverse_reads):
         pathcomp = forward_reads.split("/")
         metafile = "/mnt/nas2/processed_sequence_data/miseq_assemblies/" + pathcomp[5] + "/reports/combinedMetadata.csv"
         if os.path.isfile(metafile):
-            samplename = pathcomp[6].split("_", 1)[0]
-            with open(metafile) as f:
-                lines = f.readlines()
-            for line in lines:
-                if line.startswith(samplename + ","):
-                    try:
-                        genome_size = int(line.split(",")[8])
+            try:
+                samplename = pathcomp[6].split("_", 1)[0]
+                with open(metafile) as f:
+                   lines = f.readlines()
+                cols = lines[0].split(",")
+                colofinterest = [c for c in range(len(cols) - 1) if cols[c] == "TotalLength"][0]
+                for line in lines:
+                    if line.startswith(samplename + ","):
+                        genome_size = int(line.split(",")[colofinterest])
                         if genome_size > 1000000:
                             return genome_size
+                            break
+            except:
+                print("Something went wrong with finding a genome size.")
+                return None
+    elif forward_reads.startswith("/mnt/nas2/raw_sequence_data/merged_sequences/"):
+            files_to_check = os.path.join('/mnt/nas2/processed_sequence_data/merged_assemblies/*/reports/combinedMetadata.csv*')
+            samplename = forward_reads.split("/")[5].split("_", 1)[0]
+            for metafile in glob.iglob(files_to_check):
+                if os.path.isfile(metafile):
+                    try:
+                        with open(metafile) as f:
+                            lines = f.readlines()
+                        cols = lines[0].split(",")
+                        colofinterest = [c for c in range(len(cols) - 1) if cols[c] == "TotalLength"][0]
+                        for line in lines:
+                            if line.startswith(samplename + ","):
+                                genome_size = int(line.split(",")[colofinterest])
+                                if genome_size > 1000000:
+                                    return genome_size
+                                    break
                     except:
                         break
-                    break
-    # if genome_size doesn't pass sanity check, get it the slow way.
-    cmd = 'kmercountexact.sh in={forward_reads} in2={reverse_reads} peaks=peaks.txt overwrite=true'.format(forward_reads=forward_reads, reverse_reads=reverse_reads)
-    os.system(cmd)
-    with open('peaks.txt') as f:
-        lines = f.readlines()
-    for line in lines:
-        if 'haploid_genome_size' in line:
-            genome_size = int(line.split()[1])
-            return genome_size
-    return genome_size
+ 
+
+    # if genome_size doesn't pass sanity check, just return None.
+    print("Could not find genome size.")
+    return None
 
 
 # Heng Li readfq - super fast!
