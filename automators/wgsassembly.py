@@ -26,10 +26,10 @@ def wgsassembly_redmine(redmine_instance, issue, work_dir, description):
     description = pickle.load(open(description, 'rb'))
 
     try:
-        # Add Cathy as a watcher so that we can make sure things get done. Also add me (Andrew) in case people
+        # Add Cathy as a watcher so that we can make sure things get done. Also add Julie in case people
         # forget to assign the issue to me.
         issue.watcher.add(225)  # This is Cathy
-        issue.watcher.add(296)  # This is me.
+        issue.watcher.add(429)  # This is Julie.
         # instead of folder on NAS.
         # Verify that sequence folder in description is named correctly.
         sequence_folder = description[0]
@@ -77,7 +77,7 @@ def wgsassembly_redmine(redmine_instance, issue, work_dir, description):
 
             if download_successful is False:
                 redmine_instance.issue.update(resource_id=issue.id,
-                                              assigned_to_id=296,
+                                              assigned_to_id=429,
                                               subject='WGS Assembly: {}'.format(description[0]),
                                               notes='Download of files from FTP was not successful.')
                 return
@@ -85,15 +85,26 @@ def wgsassembly_redmine(redmine_instance, issue, work_dir, description):
         # Once the folder has been downloaded, copy it to the hdfs and start assembling using docker image.
         cmd = 'cp -r {local_folder} /hdfs'.format(local_folder=local_folder)
         os.system(cmd)
-        # Run the new pipeline docker image, after making sure it doesn't exist.
-        cmd = 'docker rm -f cowbat'
-        os.system(cmd)
-        cmd = 'docker run -i -u $(id -u) -v /mnt/nas2:/mnt/nas2 -v /hdfs:/hdfs --name cowbat --rm {cowbat_image} /bin/bash -c ' \
-              '"source activate cowbat && assembly_pipeline.py -s {hdfs_folder} ' \
-              '-r {cowbat_databases}"'.format(hdfs_folder=os.path.join('/hdfs', sequence_folder),
-                                              cowbat_image=COWBAT_IMAGE,
-                                              cowbat_databases=COWBAT_DATABASES)
-        os.system(cmd)
+        # These unfortunate hard coded paths appear to be necessary
+        activate = 'source /home/ubuntu/miniconda3/bin/activate /mnt/nas2/virtual_environments/cowbat'
+        cowbat_py = '/mnt/nas2/virtual_environments/cowbat/bin/assembly_pipeline.py'
+        # Run COWBAT with the necessary arguments
+        cowbat_cmd = 'python {cowbat_py} -s {seqpath} -r {database}' \
+            .format(cowbat_py=cowbat_py,
+                    seqpath=os.path.join('/hdfs', sequence_folder),
+                    database=COWBAT_DATABASES)
+        redmine_instance.issue.update(resource_id=issue.id,
+                                      notes='COWBAT command:\n {cmd}'.format(cmd=cowbat_cmd))
+        # Create another shell script to execute within the conda environment
+        template = "#!/bin/bash\n{} && {}".format(activate, cowbat_cmd)
+        cowbat_script = os.path.join(work_dir, 'run_cowbat.sh')
+        with open(cowbat_script, 'w+') as file:
+            file.write(template)
+        # Modify the permissions of the script to allow it to be run on the node
+        make_executable(cowbat_script)
+        # Run shell script
+        os.system(cowbat_script)
+
         # Now need to move to an appropriate processed_sequence_data folder.
         local_wgs_spades_folder = os.path.join('/mnt/nas2/processed_sequence_data/miseq_assemblies', sequence_folder)
         cmd = 'mv {hdfs_folder} {wgsspades_folder}'.format(hdfs_folder=os.path.join('/hdfs', sequence_folder),
@@ -137,14 +148,14 @@ def wgsassembly_redmine(redmine_instance, issue, work_dir, description):
         # to be made. assinged_to_id to use is 226. Priority is 3 (High).
         if upload_successful:
             redmine_instance.issue.update(resource_id=issue.id,
-                                          assigned_to_id=296, priority_id=3,
+                                          assigned_to_id=529, priority_id=3,
                                           subject='WGS Assembly: {}'.format(description[0]), # Add run name to subject
                                           notes='This run has finished assembly! Please add it to the OLC Database.\n'
                                                 'Reports and assemblies uploaded to FTP at: ftp://ftp.agr.gc.ca/outgoing/'
                                                 'cfia-ak/{}.zip'.format(issue.id))
         else:
             redmine_instance.issue.update(resource_id=issue.id,
-                                          assigned_to_id=296,
+                                          assigned_to_id=429,
                                           subject='WGS Assembly: {}'.format(description[0]),
                                           notes='Upload of result files was not successful. Upload them manually!')
         try:
@@ -536,6 +547,16 @@ def verify_all_the_things(sequence_folder, redmine_instance, issue, work_dir):
                                                 'new issue.'.format(str(duplicate_fastqs)))
         validation = False
     return validation
+
+
+def make_executable(path):
+    """
+    Takes a shell script and makes it executable (chmod +x)
+    :param path: path to shell script
+    """
+    mode = os.stat(path).st_mode
+    mode |= (mode & 0o444) >> 2
+    os.chmod(path, mode)
 
 
 if __name__ == '__main__':
