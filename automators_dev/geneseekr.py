@@ -45,7 +45,8 @@ def geneseekr_redmine(redmine_instance, issue, work_dir, description):
         'rmlst': '-R',
         'serosippr': '-S',
         'sixteens': '-X',
-        'virulence': '-V'
+        'virulence': '-V',
+        'cgmlst': '-C'
     }
     # Set the database path for the analyses
     dbpath = COWBAT_DATABASES
@@ -59,6 +60,7 @@ def geneseekr_redmine(redmine_instance, issue, work_dir, description):
         'serosippr': os.path.join(dbpath, 'serosippr', 'Escherichia'),
         'sixteens': os.path.join(dbpath, 'sixteens_full'),
         'virulence': os.path.join(dbpath, 'virulence'),
+        'cgmlst': os.path.join(dbpath, 'cgmlst')
     }
     try:
         # Parse description to figure out what SEQIDs we need to run on.
@@ -235,33 +237,6 @@ def geneseekr_redmine(redmine_instance, issue, work_dir, description):
         redmine_instance.issue.update(resource_id=issue.id,
                                       notes='Something went wrong! We log this automatically and will look into the '
                                             'problem and get back to you with a fix soon.')
-
-
-# def run_mash(seqids, output_dir):
-#     """
-#     Use MASH to determine the genus of strains when the requested analysis has a genus-specific database
-#     :return: dictionary of MASH-calculated genera
-#     """
-#     # Dictionary to store the MASH results
-#     genus_dict = dict()
-#     # Run mash screen on each of the assemblies
-#     for seqid in seqids:
-#         screen_file = os.path.join(output_dir, '{seqid}_screen.tab'.format(seqid=seqid))
-#         mash.screen('/mnt/nas2/databases/confindr/databases/refseq.msh',
-#                     item,
-#                     threads=8,
-#                     w='',
-#                     i='0.95',
-#                     output_file=screen_file,
-#                     returncmd=True)
-#         screen_output = mash.read_mash_screen(screen_file)
-#         # Determine the genus from the screen output file
-#         for screen in screen_output:
-#             # Extract the genus from the mash results
-#             mash_organism = screen.query_id.split('/')[-3]
-#             # Populate the dictionary with the seqid, and the calculated genus
-#             genus_dict[seqid] = mash_organism
-#     return genus_dict
 
 
 def verify_fasta_files_present(seqid_list, fasta_dir):
