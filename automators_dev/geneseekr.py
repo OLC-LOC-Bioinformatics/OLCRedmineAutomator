@@ -60,7 +60,7 @@ def geneseekr_redmine(redmine_instance, issue, work_dir, description):
         'serosippr': os.path.join(dbpath, 'serosippr', 'Escherichia'),
         'sixteens': os.path.join(dbpath, 'sixteens_full'),
         'virulence': os.path.join(dbpath, 'virulence'),
-        'cgmlst': os.path.join(dbpath, 'cgmlst')
+        'cgmlst': os.path.join(dbpath, 'cgMLST')
     }
     try:
         # Parse description to figure out what SEQIDs we need to run on.
@@ -123,7 +123,8 @@ def geneseekr_redmine(redmine_instance, issue, work_dir, description):
                                               status_id=4)
                 return
         # Ensure that the organism has been provided for organism-specific analyses
-        if argument_dict['analysis'] == 'gdcs' or argument_dict['analysis'] == 'mlst':
+        if argument_dict['analysis'] == 'gdcs' or argument_dict['analysis'] == 'mlst' or \
+                argument_dict['analysis'] == 'cgmlst':
             if not argument_dict['organism']:
                 redmine_instance.issue.update(resource_id=issue.id,
                                               notes='ERROR: Analysis type {at} requires the genus to be used for the '

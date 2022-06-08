@@ -127,7 +127,8 @@ def geneseekr_redmine(redmine_instance, issue, work_dir, description):
                                               status_id=4)
                 return
         # Ensure that the organism has been provided for organism-specific analyses
-        if argument_dict['analysis'] == 'gdcs' or argument_dict['analysis'] == 'mlst':
+        if argument_dict['analysis'] == 'gdcs' or argument_dict['analysis'] == 'mlst' or \
+                argument_dict['analysis'] == 'cgmlst':
             if not argument_dict['organism']:
                 redmine_instance.issue.update(resource_id=issue.id,
                                               notes='ERROR: Analysis type {at} requires the genus to be used for the '
