@@ -24,7 +24,7 @@ def geneseekr_redmine(redmine_instance, issue, work_dir, description):
     description = pickle.load(open(description, 'rb'))
     # Current list of analysis types that the GeneSeekr can perform
     analyses = [
-        'custom', 'gdcs', 'genesippr', 'mlst', 'resfinder', 'rmlst', 'serosippr', 'sixteens', 'virulence'
+        'custom', 'gdcs', 'genesippr', 'mlst', 'resfinder', 'rmlst', 'serosippr', 'sixteens', 'virulence','cgmlst'
     ]
     # Current BLAST analyses supported
     blasts = ['blastn', 'blastp', 'blastx', 'tblastn', 'tblastx']
@@ -64,7 +64,7 @@ def geneseekr_redmine(redmine_instance, issue, work_dir, description):
         'serosippr': os.path.join(dbpath, 'serosippr', 'Escherichia'),
         'sixteens': os.path.join(dbpath, 'sixteens_full'),
         'virulence': os.path.join(dbpath, 'virulence'),
-        'cgmlst': os.path.join(dbpath, 'cgmlst')
+        'cgmlst': os.path.join(dbpath, 'cgMLST')
     }
     try:
         # Parse description to figure out what SEQIDs we need to run on.
@@ -242,7 +242,7 @@ def geneseekr_redmine(redmine_instance, issue, work_dir, description):
                                       notes='Something went wrong! We log this automatically and will look into the '
                                             'problem and get back to you with a fix soon.')
 
- def verify_fasta_files_present(seqid_list, fasta_dir):
+def verify_fasta_files_present(seqid_list, fasta_dir):
     """
     Makes sure that FASTQ files specified in seqid_list have been successfully copied/linked to directory specified
     by fastq_dir.
