@@ -136,7 +136,7 @@ def psortb_redmine(redmine_instance, issue, work_dir, description):
         upload_successful = upload_to_ftp(local_file=report_dir + '.zip')
         redmine_instance.issue.update(resource_id=issue.id, status_id=4,
                                       notes='PsortB complete! Results available at: '
-                                            'ftp://ftp.agr.gc.ca/outgoing/cfia-ak/{}'.format(os.path.split(report_dir)[1] + '.zip'))
+                                            'ftp://ftp.agr.gc.ca/outgoing/cfia-ac/{}'.format(os.path.split(report_dir)[1] + '.zip'))
         shutil.rmtree(assemblies_folder)
         shutil.rmtree(prokka_folder)
     except Exception as e:

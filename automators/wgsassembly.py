@@ -13,6 +13,7 @@ import ftplib
 from ftplib import FTP
 from automator_settings import FTP_USERNAME, FTP_PASSWORD, COWBAT_IMAGE, COWBAT_DATABASES
 import traceback
+import pandas as pd
 
 @click.command()
 @click.option('--redmine_instance', help='Path to pickled Redmine API instance')
@@ -26,10 +27,12 @@ def wgsassembly_redmine(redmine_instance, issue, work_dir, description):
     description = pickle.load(open(description, 'rb'))
 
     try:
-        # Add Cathy as a watcher so that we can make sure things get done. Also add Julie in case people
+        # Add Cathy as a watcher so that we can make sure things get done. Also add Ashley in case people
         # forget to assign the issue to me.
         issue.watcher.add(225)  # This is Cathy
-        issue.watcher.add(429)  # This is Julie.
+        issue.watcher.add(222)  # This is Ashley
+        issue.watcher.add(904)  # This is Liam
+        #issue.watcher.add(429)  # This is Julie.
         # instead of folder on NAS.
         # Verify that sequence folder in description is named correctly.
         sequence_folder = description[0]
@@ -86,8 +89,8 @@ def wgsassembly_redmine(redmine_instance, issue, work_dir, description):
         cmd = 'cp -r {local_folder} /hdfs'.format(local_folder=local_folder)
         os.system(cmd)
         # These unfortunate hard coded paths appear to be necessary
-        activate = 'source /home/ubuntu/miniconda3/bin/activate /mnt/nas2/virtual_environments/cowbat'
-        cowbat_py = '/mnt/nas2/virtual_environments/cowbat/bin/assembly_pipeline.py'
+        activate = 'source /home/ubuntu/miniconda3/bin/activate /mnt/nas2/virtual_environments/dev/cowbat' #ashley added the /dev/
+        cowbat_py = '/mnt/nas2/virtual_environments/dev/cowbat/bin/assembly_pipeline.py' #ashley added the /dev/
         # Run COWBAT with the necessary arguments
         cowbat_cmd = 'python {cowbat_py} -s {seqpath} -r {database}' \
             .format(cowbat_py=cowbat_py,
@@ -116,6 +119,9 @@ def wgsassembly_redmine(redmine_instance, issue, work_dir, description):
         cmd = 'rm {fastq_files}'.format(fastq_files=os.path.join(local_wgs_spades_folder, '*.fastq.gz'))
         print(cmd)
         os.system(cmd)
+
+        # fix the legacy_combinedMetadata.csv file. Hopefully Adam will be able to remove this soon
+        fix_legacy_metadata(os.path.join(local_wgs_spades_folder, 'reports/legacy_combinedMetadata.csv'))
 
         # Upload the results of the sequencing run to Redmine.
         cmd = 'cp {samplesheet} {reports_folder}'.format(samplesheet=os.path.join(local_wgs_spades_folder, 'SampleSheet.csv'),
@@ -152,7 +158,7 @@ def wgsassembly_redmine(redmine_instance, issue, work_dir, description):
                                           subject='WGS Assembly: {}'.format(description[0]), # Add run name to subject
                                           notes='This run has finished assembly! Please add it to the OLC Database.\n'
                                                 'Reports and assemblies uploaded to FTP at: ftp://ftp.agr.gc.ca/outgoing/'
-                                                'cfia-ak/{}.zip'.format(issue.id))
+                                                'cfia-ac/{}.zip'.format(issue.id))
         else:
             redmine_instance.issue.update(resource_id=issue.id,
                                           assigned_to_id=429,
@@ -172,7 +178,7 @@ def wgsassembly_redmine(redmine_instance, issue, work_dir, description):
 
 def check_if_file(file_name, ftp_dir):
     ftp = FTP('ftp.agr.gc.ca', user=FTP_USERNAME, passwd=FTP_PASSWORD)
-    ftp.cwd(os.path.join('incoming/cfia-ak', ftp_dir))
+    ftp.cwd(os.path.join('incoming/cfia-ac', ftp_dir))
     is_file = True
     try:
         ftp.size(file_name)
@@ -191,7 +197,7 @@ def download_ftp_file(ftp_file, local_dir):
         # sometimes. If it did complete, we're good to go. Otherwise, try again.
         try:
             s = FTP('ftp.agr.gc.ca', user=FTP_USERNAME, passwd=FTP_PASSWORD, timeout=30)
-            s.cwd('incoming/cfia-ak')
+            s.cwd('incoming/cfia-ac')
             local_path = os.path.join(local_dir, os.path.split(ftp_file)[1])
             f = open(local_path, 'wb')
             s.retrbinary('RETR ' + ftp_file, f.write)
@@ -203,7 +209,7 @@ def download_ftp_file(ftp_file, local_dir):
         except socket.timeout:
             local_path = os.path.join(local_dir, os.path.split(ftp_file)[1])
             s = FTP('ftp.agr.gc.ca', user=FTP_USERNAME, passwd=FTP_PASSWORD, timeout=30)
-            s.cwd('incoming/cfia-ak')
+            s.cwd('incoming/cfia-ac')
             ftp_file_size = s.size(ftp_file)
             # s.quit()
             quit_ftp(s)
@@ -218,7 +224,7 @@ def download_ftp_file(ftp_file, local_dir):
 def download_dir(ftp_dir, local_dir):
     all_downloads_successful = True
     ftp = FTP('ftp.agr.gc.ca', user=FTP_USERNAME, passwd=FTP_PASSWORD)
-    ftp.cwd(os.path.join('incoming/cfia-ak', ftp_dir))
+    ftp.cwd(os.path.join('incoming/cfia-ac', ftp_dir))
     present_in_folder = ftp.nlst()
     for item in present_in_folder:
         if check_if_file(item, ftp_dir):
@@ -238,10 +244,10 @@ def download_dir(ftp_dir, local_dir):
 def delete_ftp_dir(ftp_dir):
     """
     Cleaning up the FTP after things have finished is a good idea. This allows recursive deletion of an FTP dir.
-    :param ftp_dir: Name of directory within incoming/cfia-ak you want deleted.
+    :param ftp_dir: Name of directory within incoming/cfia-ac you want deleted.
     """
     ftp = FTP('ftp.agr.gc.ca', user=FTP_USERNAME, passwd=FTP_PASSWORD)
-    ftp.cwd(os.path.join('incoming/cfia-ak', ftp_dir))
+    ftp.cwd(os.path.join('incoming/cfia-ac', ftp_dir))
     present_in_folder = ftp.nlst()
     for item in present_in_folder:
         if check_if_file(item, ftp_dir):
@@ -295,7 +301,7 @@ def validate_fastq_run_stats(samplesheet_seqids, sequence_folder):
 
 def ensure_samples_are_present(samplesheet_seqids, sequence_folder):
     ftp = FTP('ftp.agr.gc.ca', user=FTP_USERNAME, passwd=FTP_PASSWORD)
-    ftp.cwd(os.path.join('incoming/cfia-ak', sequence_folder))
+    ftp.cwd(os.path.join('incoming/cfia-ac', sequence_folder))
     missing_samples = list()
     ftp_files = ftp.nlst()
     for seqid in samplesheet_seqids:
@@ -337,10 +343,20 @@ def get_seqids_from_samplesheet(samplesheet):
     return csv_names
 
 
+# super legit fix for column mislabeling issue
+def fix_legacy_metadata(infile):
+    md = pd.read_csv(infile)
+    colorder = md.columns
+    md = md.rename(columns={"PipelineVersion": "assemblydate", "AssemblyDate": "confindrcontamsnvs", "ConfindrContamSNVs": "pipelineversion"})
+    md = md.rename(columns={"pipelineversion": "PipelineVersion", "assemblydate": "AssemblyDate", "confindrcontamsnvs": "ConfindrContamSNVs"})
+    md = md[colorder].set_index("SeqID")
+    md.to_csv(infile)
+
+
 def validate_files(file_name):
     ftp = FTP('ftp.agr.gc.ca', user=FTP_USERNAME, passwd=FTP_PASSWORD)
     missing_files = list()
-    ftp.cwd(os.path.join('incoming/cfia-ak', file_name))
+    ftp.cwd(os.path.join('incoming/cfia-ac', file_name))
     files_present = ftp.nlst()
     if 'SampleSheet.csv' not in files_present:
         missing_files.append('SampleSheet.csv')
@@ -355,7 +371,7 @@ def validate_files(file_name):
 
 def download_info_sheets(sequence_folder, local_folder):
     ftp = FTP('ftp.agr.gc.ca', user=FTP_USERNAME, passwd=FTP_PASSWORD)
-    ftp.cwd(os.path.join('incoming/cfia-ak', sequence_folder))
+    ftp.cwd(os.path.join('incoming/cfia-ac', sequence_folder))
     info_sheets = ['SampleSheet.csv', 'RunInfo.xml', 'GenerateFASTQRunStatistics.xml']
     for sheet in info_sheets:
         try:
@@ -371,7 +387,7 @@ def download_info_sheets(sequence_folder, local_folder):
 def verify_fastq_sizes(sequence_folder):
     ftp = FTP('ftp.agr.gc.ca', user=FTP_USERNAME, passwd=FTP_PASSWORD)
     tiny_fastqs = list()
-    ftp.cwd(os.path.join('incoming/cfia-ak', sequence_folder))
+    ftp.cwd(os.path.join('incoming/cfia-ac', sequence_folder))
     ftp_files = ftp.nlst()
     for item in ftp_files:
         if item.endswith('.gz') and 'Undetermined' not in item:
@@ -386,7 +402,7 @@ def verify_fastq_sizes(sequence_folder):
 def verify_seqid_formatting(sequence_folder):
     ftp = FTP('ftp.agr.gc.ca', user=FTP_USERNAME, passwd=FTP_PASSWORD)
     badly_formatted_files = list()
-    ftp.cwd(os.path.join('incoming/cfia-ak', sequence_folder))
+    ftp.cwd(os.path.join('incoming/cfia-ac', sequence_folder))
     # Find all the files in the specified sequence folder.
     ftp_files = ftp.nlst()
     for item in ftp_files:
@@ -426,7 +442,7 @@ def verify_seqid_formatting(sequence_folder):
 
 def verify_folder_exists(sequence_folder):
     ftp = FTP('ftp.agr.gc.ca', user=FTP_USERNAME, passwd=FTP_PASSWORD)
-    ftp.cwd('incoming/cfia-ak')
+    ftp.cwd('incoming/cfia-ac')
     folders_present = ftp.nlst()
     if sequence_folder in folders_present:
         folder_exists = True

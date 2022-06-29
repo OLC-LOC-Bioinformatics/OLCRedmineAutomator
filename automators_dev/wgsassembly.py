@@ -27,6 +27,7 @@ def wgsassembly_redmine(redmine_instance, issue, work_dir, description):
         # Add Cathy as a watcher so that we can make sure things get done. Also add me (Andrew) in case people
         # forget to assign the issue to me.
         issue.watcher.add(225)  # This is Cathy
+	issue.watcher.add(222)  # This is Ashley
         issue.watcher.add(296)  # This is me.
         # instead of folder on NAS.
         # Verify that sequence folder in description is named correctly.

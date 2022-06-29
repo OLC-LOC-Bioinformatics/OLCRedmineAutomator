@@ -120,7 +120,7 @@ def plasmid_borne_identity(redmine_instance, issue, work_dir, description):
         # These unfortunate hard coded paths appear to be necessary
         activate = 'source /home/ubuntu/miniconda3/bin/activate /mnt/nas2/virtual_environments/cowbat'
         # Run sipprverse with the necessary arguments
-        mob_cmd = 'python -m spadespipeline.mobrecon -s {seqfolder} -r {targetfolder} -a geneseekr -b {blast}' \
+        mob_cmd = 'python -m genemethods.assemblypipeline.mobrecon -s {seqfolder} -r {targetfolder} -a geneseekr -b {blast} -u' \
             .format(seqfolder=work_dir,
                     targetfolder=os.path.join(db_path, 'mobrecon'),
                     blast=argument_dict['blast'])

@@ -127,8 +127,8 @@ def sipprverse_redmine(redmine_instance, issue, work_dir, description):
                                           notes='WARNING: Could not find the following requested SEQIDs on'
                                                 ' the OLC NAS: {}'.format(missing_fastqs))
         # These unfortunate hard coded paths appear to be necessary
-        activate = 'source /home/ubuntu/miniconda3/bin/activate /mnt/nas2/virtual_environments/sipprverse'
-        sippr_py = '/mnt/nas2/virtual_environments/sipprverse/bin/sippr.py'
+        activate = 'source /home/ubuntu/miniconda3/bin/activate /mnt/nas2/virtual_environments/dev/sipprverse'
+        sippr_py = '/mnt/nas2/virtual_environments/dev/sipprverse/bin/sippr.py'
         # Run sipprverse with the necessary arguments
         sippr_cmd = 'python {sippr_py} -s {seqpath} -o {outpath} -r {dbpath} -a {ad} -k {ks} -c {cut} {at}'\
             .format(sippr_py=sippr_py,

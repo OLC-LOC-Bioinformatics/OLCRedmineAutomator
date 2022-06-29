@@ -52,8 +52,8 @@ def merge_redmine(redmine_instance, issue, work_dir, description):
                            copyflag=False)
 
         # Run the merger script.
-        cmd = 'python /mnt/nas/Redmine/OLCRedmineAutomator/automators/merger.py -f {} -d ";" {}'.format(
-            os.path.join(work_dir, 'Merge.xlsx'), work_dir)
+        cmd = 'python /mnt/nas2/redmine/applications/OLCRedmineAutomator/automators_dev/merger.py -f {} -d ";" {}'\
+            .format(os.path.join(work_dir, 'Merge.xlsx'), work_dir)
         os.system(cmd)
 
         # Make a folder to put all the merged FASTQs in biorequest folder. and put the merged FASTQs there.
@@ -78,15 +78,26 @@ def merge_redmine(redmine_instance, issue, work_dir, description):
         redmine_instance.issue.update(resource_id=issue.id,
                                       notes='Merged FASTQ files created, beginning assembly of merged files.')
         # With files copied over to the HDFS, start the assembly process.
-        os.system('docker rm -f spadespipeline')
-        # Run docker image.
-        cmd = 'docker run -i -u $(id -u) -v /mnt/nas/Adam/spadespipeline/OLCspades/:/spadesfiles ' \
-              '-v /mnt/nas/Adam/assemblypipeline/:/pipelinefiles -v  {}:/sequences ' \
-              '--name spadespipeline pipeline:0.1.5 OLCspades.py ' \
-              '/sequences -r /pipelinefiles'.format(os.path.join('/hdfs', 'merged_' + str(issue.id)))
-        os.system(cmd)
-        # Remove the container.
-        os.system('docker rm -f spadespipeline')
+        # These unfortunate hard coded paths appear to be necessary
+        activate = 'source /home/ubuntu/miniconda3/bin/activate /mnt/nas2/virtual_environments/dev/cowbat'
+        assembly_pipeline = '/mnt/nas2/virtual_environments/dev/cowbat/bin/assembly_pipeline.py'
+        # Run sipprverse with the necessary arguments
+        run_cmd = 'python {assembly_pipeline} -s {seqpath} -r {dbpath}' \
+            .format(assembly_pipeline=assembly_pipeline,
+                    seqpath=os.path.join('/hdfs', 'merged_' + str(issue.id)),
+                    dbpath=COWBAT_DATABASES)
+
+        redmine_instance.issue.update(resource_id=issue.id,
+                                      notes='COWBAT command:\n {cmd}'.format(cmd=run_cmd))
+        # Create another shell script to execute within the conda environment
+        template = "#!/bin/bash\n{} && {}".format(activate, run_cmd)
+        script = os.path.join(work_dir, 'run_pipeline.sh')
+        with open(script, 'w+') as file:
+            file.write(template)
+        # Modify the permissions of the script to allow it to be run on the node
+        make_executable(script)
+        # Run shell script
+        os.system(script)
 
         # Move results to merge_WGSspades, and upload the results folder to redmine.
         cmd = 'mv {hdfs_folder} {merge_WGSspades}'.format(hdfs_folder=os.path.join('/hdfs', 'merged_' + str(issue.id)),
@@ -127,6 +138,15 @@ def generate_seqid_list(mergefile):
         for item in row.split(';'):
             seqid_list.append(item)
     return seqid_list
+
+def make_executable(path):
+    """
+    Takes a shell script and makes it executable (chmod +x)
+    :param path: path to shell script
+    """
+    mode = os.stat(path).st_mode
+    mode |= (mode & 0o444) >> 2
+    os.chmod(path, mode)
 
 
 if __name__ == '__main__':

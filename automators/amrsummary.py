@@ -68,7 +68,7 @@ def resfinder_redmine(redmine_instance, issue, work_dir, description):
         # These unfortunate hard coded paths appear to be necessary
         activate = 'source /home/ubuntu/miniconda3/bin/activate /mnt/nas2/virtual_environments/cowbat'
         # Run sipprverse with the necessary arguments
-        mob_cmd = 'python -m spadespipeline.mobrecon -s {seqfolder} -r {targetfolder}' \
+        mob_cmd = 'python -m genemethods.assemblypipeline.mobrecon -s {seqfolder} -r {targetfolder}' \
             .format(seqfolder=work_dir,
                     targetfolder=os.path.join(db_path, 'mobrecon'))
         # Update the issue with the MOB Recon command

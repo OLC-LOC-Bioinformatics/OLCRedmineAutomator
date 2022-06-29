@@ -3,6 +3,7 @@ import glob
 import click
 import pickle
 import shutil
+import pandas
 from nastools.nastools import retrieve_nas_files
 from externalretrieve import upload_to_ftp
 
@@ -18,12 +19,21 @@ def roary_redmine(redmine_instance, issue, work_dir, description):
         redmine_instance = pickle.load(open(redmine_instance, 'rb'))
         issue = pickle.load(open(issue, 'rb'))
         description = pickle.load(open(description, 'rb'))
+
+        #analyses supported by the automator
+        analysistypes = [
+            'union', 'intersection', 'complement', 'difference', 'gene_multifasta'
+        ]
+
         # Variable to hold supplied arguments
         argument_dict = {
-            'union': False,
-            'intersection': False,
-            'complement': False,
-            'difference': False,
+#            'union': False,
+#            'intersection': False,
+#            'complement': False,
+#            'difference': False,
+#            'gene_multifasta': False,
+            'analysistype': str(),
+            'genes': False,
             'set_one': list(),
             'set_two': list()
         }
@@ -32,28 +42,38 @@ def roary_redmine(redmine_instance, issue, work_dir, description):
         seqids = list()
         analysistype = "" # Just for the output at the end
         for item in description:
-            item = item.upper().rstrip()
-            if 'UNION' in item:
-                argument_dict['union'] = True
-                analysistype += "union "
+            item = item.rstrip()
+#            if 'UNION' in item:
+#                argument_dict['union'] = True
+#                analysistype += "union "
+#                continue
+#            if 'INTERSECTION' in item:
+#                argument_dict['intersection'] = True
+#                analysistype += "intersection "
+#                continue
+#            if 'COMPLEMENT' in item:
+#                argument_dict['complement'] = True
+#                analysistype += "complement "
+#                continue
+#            if 'DIFFERENCE' in item:
+#                argument_dict['difference'] = True
+#                analysistype += "difference "
+#                continue
+#            if 'GENE_MULTIFASTA' in item:
+#                argument_dict['gene_multifasta'] = True
+#                analysistype += "gene_multifasta "
+#                continue
+            if 'analysistype' in item:
+                argument_dict['analysistype'] = item.split('=')[1].lower()
                 continue
-            if 'INTERSECTION' in item:
-                argument_dict['intersection'] = True
-                analysistype += "intersection "
-                continue
-            if 'COMPLEMENT' in item:
-                argument_dict['complement'] = True
-                analysistype += "complement "
-                continue
-            if 'DIFFERENCE' in item:
-                argument_dict['difference'] = True
-                analysistype += "difference "
-                continue
-            if 'SET_TWO' in item:
+            if 'set_two' in item:
                 set_one = False
                 continue
-            if 'SET_ONE' in item:
+            if 'set_one' in item:
                 set_one = True
+                continue
+            if 'genes' in item:
+                argument_dict['genes'] = item.split('=')[1]
                 continue
             # Otherwise the item should be a SEQID
             seqids.append(item)
@@ -63,24 +83,40 @@ def roary_redmine(redmine_instance, issue, work_dir, description):
             else:
                 argument_dict['set_two'].append(item)
         # Sanity check for arguments - too many analysis types
-        if argument_dict['union'] + argument_dict['intersection'] + argument_dict['complement'] + \
-                argument_dict['difference'] > 1:
-            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                          notes='You included too many analysis types.')
+#        if argument_dict['union'] + argument_dict['intersection'] + argument_dict['complement'] + \
+#                argument_dict['difference'] + argument_dict['gene_multifasta'] > 1:
+#            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
+#                                          notes='You included too many analysis types.')
         # No analysis types
-        elif argument_dict['union'] + argument_dict['intersection'] + argument_dict['complement'] + \
-                argument_dict['difference'] == 0:
-            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                          notes='You did not include an analysis type.')
+#        elif argument_dict['union'] + argument_dict['intersection'] + argument_dict['complement'] + \
+#                argument_dict['difference'] + argument_dict['gene_multifasta'] == 0:
+#            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
+#                                          notes='You did not include an analysis type.')
+        # Ensure that the analysis type is acceptable
+        if argument_dict['analysistype'] not in analysistypes:
+            redmine_instance.issue.update(resource_id=issue.id,
+                                          notes='WARNING: supplied analysis type {at} current not in the supported '
+                                                'list of analysis types: {ats}'.format(at=argument_dict['analysistype'],
+                                                                                       ats=', '.join(analysistypes)),
+                                          status_id=4)
+            return        
         # No SEQIDs
         if len(seqids) == 0:
             redmine_instance.issue.update(resource_id=issue.id, status_id=4,
                                           notes='You did not include any SEQIDs.')
+            return
         # Difference analysis type, but no input_set_two provided
-        if argument_dict['difference'] and not argument_dict['set_two']:
+        if argument_dict['analysistype'] == 'difference' and not argument_dict['set_two']:
             redmine_instance.issue.update(resource_id=issue.id, status_id=4,
                                           notes='You specified the "difference" analysis type, but did not include any '
                                                 'SEQIDs for input_set_two.')
+            return
+        # Gene_multifasta analysis type, but no genes provided
+        if argument_dict['analysistype'] == 'gene_multifasta' and not argument_dict['genes']:
+            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
+                                          notes='You specified the "gene_multifasta" analysis type, but did not include any '
+                                                'genes for alignment. Please include a comma-separated list of genes.')
+            return
         # Create folder to drop FASTA files
         assemblies_folder = os.path.join(work_dir, 'assemblies')
         os.mkdir(assemblies_folder)
@@ -139,29 +175,72 @@ def roary_redmine(redmine_instance, issue, work_dir, description):
         query = '/mnt/nas2/virtual_environments/roary/bin/query_pan_genome'
         scoary = '/mnt/nas2/virtual_environments/roary/bin/scoary'
 
-        analysis_type = str()
-        for key, value in argument_dict.items():
-            if type(value) == bool:
-                if value:
-                    analysis_type = key
-        roary_cmd = 'cd {roary_dir} && {roary} *.gff'.format(roary_dir=roary_folder,
-                                                             roary=roary)
-        if analysis_type != 'difference':
-            query_cmd = 'cd {roary_dir} && {query} -a {analysis_type} -o {output_file} *.gff'\
+#        analysistype = str()
+#        for key, value in argument_dict.items():
+#            if type(value) == bool:
+#                if value:
+#                    analysistype = key
+#        roary_cmd = 'cd {roary_dir} && {roary} *.gff'.format(roary_dir=roary_folder,
+#                                                             roary=roary)
+        roary_cmd = 'cd {roary_dir} && roary *.gff'.format(roary_dir=roary_folder)
+
+        if argument_dict['analysistype'] == 'union':
+            query_cmd = 'cd {roary_dir} && {query} -a {analysistype} -o {output_file} *.gff'\
                 .format(query=query,
-                        analysis_type=analysis_type,
+                        analysistype=argument_dict['analysistype'],
                         output_file=os.path.join(roary_folder, 'pan_genome_results'),
                         roary_dir=roary_folder,
                         gff_files=','.join(set_one_gff))
-        else:
-            query_cmd = 'cd {roary_dir} && {query} -a {analysis_type} -o {output_file} -i {set_one_files} ' \
+        if argument_dict['analysistype'] == 'intersection':
+            query_cmd = 'cd {roary_dir} && {query} -a {analysistype} -o {output_file} *.gff'\
+                .format(query=query,
+                        analysistype=argument_dict['analysistype'],
+                        output_file=os.path.join(roary_folder, 'pan_genome_results'),
+                        roary_dir=roary_folder,
+                        gff_files=','.join(set_one_gff))
+        if argument_dict['analysistype'] == 'complement':
+            query_cmd = 'cd {roary_dir} && {query} -a {analysistype} -o {output_file} *.gff'\
+                .format(query=query,
+                        analysistype=argument_dict['analysistype'],
+                        output_file=os.path.join(roary_folder, 'pan_genome_results'),
+                        roary_dir=roary_folder,
+                        gff_files=','.join(set_one_gff))
+#        if analysistype != 'difference':
+#            query_cmd = 'cd {roary_dir} && {query} -a {analysistype} -o {output_file} *.gff'\
+#                .format(query=query,
+#                        analysistype=analysistype,
+#                        output_file=os.path.join(roary_folder, 'pan_genome_results'),
+#                        roary_dir=roary_folder,
+#                        gff_files=','.join(set_one_gff))
+        # run roary gene_multifasta with necessary arguments
+        if argument_dict['analysistype'] == 'gene_multifasta':
+#            query_cmd = 'cd {roary_dir} && {query} -a {analysistype} -o {output_file} -n {genes} '\
+            query_cmd = 'cd {roary_dir} && query_pan_genome -a {analysistype} -o {output_file} -n {genes} '\
+                        '*.gff'.format(roary_dir=roary_folder,
+#                                       query=query,
+                                       analysistype=argument_dict['analysistype'],
+                                       output_file=str('gene_multifasta_results'),
+#                                       output_file=os.path.join(roary_folder, 'gene_multifasta_results'),
+                                       genes=argument_dict['genes'],
+                                       gff_files=','.join(set_one_gff))
+            # Create another shell script to execute within the roary conda environment
+#            template = "#!/bin/bash\n{activate} && {roary} && {query}".format(activate=activate,
+#                                                                              roary=roary_cmd,
+#                                                                              query=query_cmd)
+#            roary_script = os.path.join(work_dir, 'run_roary.sh')
+#            with open(roary_script, 'w+') as file:
+#                file.write(template)
+
+        if argument_dict['analysistype'] == 'difference':
+            query_cmd = 'cd {roary_dir} && {query} -a {analysistype} -o {output_file} -i {set_one_files} ' \
                         '-t {set_two_files}'\
                 .format(roary_dir=roary_folder,
                         query=query,
-                        analysis_type=analysis_type,
+                        analysistype=argument_dict['analysistype'],
                         output_file=os.path.join(roary_folder, 'pan_genome_results'),
                         set_one_files=','.join(set_one_gff),
                         set_two_files=','.join(set_two_gff))
+
         redmine_instance.issue.update(resource_id=issue.id,
                                       notes='Prokka complete!\n'
                                             'roary command:{roary}\n'
@@ -192,7 +271,7 @@ def roary_redmine(redmine_instance, issue, work_dir, description):
             redmine_instance.issue.update(resource_id=issue.id, status_id=4,
                                           notes='Prokka process complete!\n\n'
                                                 'Results are available at the following FTP address:\n'
-                                                'ftp://ftp.agr.gc.ca/outgoing/cfia-ak/{}'
+                                                'ftp://ftp.agr.gc.ca/outgoing/cfia-ac/{}'
                                           .format(os.path.split(zip_filepath)[1]))
         else:
             redmine_instance.issue.update(resource_id=issue.id, status_id=4,
@@ -201,7 +280,7 @@ def roary_redmine(redmine_instance, issue, work_dir, description):
                                                 'Please try again later.')
         # Remove the zip file
         os.remove(zip_filepath)
-        
+
         # Run scoary?
         # if there's a gene_presence_absence.csv file,
         if os.path.exists(os.path.join(roary_folder, 'gene_presence_absence.csv')):
@@ -212,7 +291,13 @@ def roary_redmine(redmine_instance, issue, work_dir, description):
                     attachment_id = item.id
                 if attachment_id != 0:
                     attachment = redmine_instance.attachment.get(attachment_id)
-                    attachment.download(savepath=work_dir, filename="traits.csv")
+                    attachment.download(savepath=work_dir)
+                    #there have been formatting issues when uploading csv files from windows machines. Will add a line to convert a xlsx file to csv
+                    files_list = os.listdir(work_dir)
+                    for file in files_list:
+                        if file.endswith(".xlsx"):
+                            traits_xls = pd.read_excel('traits.xlsx', 'Sheet1', index_col=None)
+                            traits_xls.to_csv('traits.csv', encoding='utf-8', index=False)
                     # then run scoary on those files and add it to the roary output
                     scoary_cmd = 'cd {roary_dir} && scoary -g {gpa} -t {traits}'.format(roary_dir=roary_folder, gpa=os.path.join(roary_folder, 'gene_presence_absence.csv'), traits=os.path.join(work_dir, "traits.csv"))
                     redmine_instance.issue.update(resource_id=issue.id, notes='Going to run scoary with this command:{scoary}'.format(scoary=scoary_cmd))
@@ -222,6 +307,9 @@ def roary_redmine(redmine_instance, issue, work_dir, description):
                         file.write(template)
                     make_executable(scoary_script)
                     os.system(scoary_script)
+        #move the Rtab file to the working directory of the redmine issue in case someone wants to use it later for a GWAS with pyseer
+        if os.path.exists(os.path.join(roary_folder, 'gene_presence_absence.Rtab')):
+            shutil.copy(os.path.join(roary_folder,'gene_presence_absence.Rtab'), os.path.join(work_dir,'gene_presence_absence.Rtab'))
 
         # Get roary results uploaded
         for gff in glob.glob(os.path.join(roary_folder, '*.gff')):
@@ -240,13 +328,18 @@ def roary_redmine(redmine_instance, issue, work_dir, description):
 #                'path': zip_filepath
 #            }
 #        ]
- 
-        # Wrap up issue
         upload_successful = upload_to_ftp(local_file=zip_filepath)
+        # Prepare upload
         if upload_successful:
+        # Wrap up issue
             redmine_instance.issue.update(resource_id=issue.id,
                                       status_id=4,
-                                      notes='{at} analysis with roary complete!\n\nResults are available at the following FTP address:\nftp://ftp.agr.gc.ca/outgoing/cfia-ak/{l}'.format(at=analysistype, l=os.path.split(zip_filepath)[1]))
+                                      notes='{at} analysis with roary complete!\n\nResults are available at the following FTP address:\nftp://ftp.agr.gc.ca/outgoing/cfia-ac/{l}'.format(at=argument_dict['analysistype'], l=os.path.split(zip_filepath)[1]))
+        else:
+            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
+                                          notes='Upload of result files was unsuccessful due to FTP connectivity '
+                                                'issues. '
+                                                'Please try again later.')
         # Clean up files
         shutil.rmtree(output_folder)
         shutil.rmtree(roary_folder)

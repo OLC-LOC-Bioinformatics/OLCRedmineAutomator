@@ -6,86 +6,48 @@ import pickle
 import shutil
 import socket
 
+from iridaextractfiles import MassExtractor
+from iridasequencefile import SequenceInfo
+
 from wgsassembly import quit_ftp
-from nastools.nastools import retrieve_nas_files
 from automator_settings import FTP_USERNAME, FTP_PASSWORD
 
+from automator_settings import SENTRY_DSN
+import sentry_sdk
+from amrsummary import before_send
 
+permitted_users = [106, 429, 225, 529, 745] # Adam Julie Cathy Ray Brenna
+
+# I'm going to make a Frankenstein of externalretrieve.py and Irida_Retrieve.py
+# so I can do IRIDA retrieves from home more easily
 @click.command()
 @click.option('--redmine_instance', help='Path to pickled Redmine API instance')
 @click.option('--issue', help='Path to pickled Redmine issue')
 @click.option('--work_dir', help='Path to Redmine issue work directory')
 @click.option('--description', help='Path to pickled Redmine description')
 def externalretrieve_redmine(redmine_instance, issue, work_dir, description):
-    print('External retrieving!')
+    sentry_sdk.init(SENTRY_DSN, before_send=before_send)
     # Unpickle Redmine objects
     redmine_instance = pickle.load(open(redmine_instance, 'rb'))
     issue = pickle.load(open(issue, 'rb'))
     description = pickle.load(open(description, 'rb'))
-
+ 
     try:
         os.makedirs(os.path.join(work_dir, str(issue.id)))
-        # Parse description to figure out what SEQIDs we need to run on.
-        fasta_list = list()
-        fastq_list = list()
-        fasta = False
-        fastq = True
-        sra = False
-        for item in description:
-            item = item.upper().rstrip()
-            if 'SRA' in item:
-                sra = True
-                continue
-            if 'FASTA' in item:
-                fasta = True
-                fastq = False
-                continue
-            if 'FASTQ' in item:
-                fastq = True
-                fasta = False
-                continue
-            if fasta:
-                fasta_list.append(item)
-            elif fastq:
-                fastq_list.append(item)
-        # Add a warning message to the issue if FASTA and SRA are selected
-        if fasta and sra:
-            redmine_instance.issue.update(resource_id=issue.id,
-                                          notes='SRA option is not compatible with FASTA files')
-            # Set the files to be FASTQ
-            fastq_list = fasta_list
-            fasta_list = list()
-        # Use NAStools to put FASTA and FASTQ files into our working dir.
-        retrieve_nas_files(seqids=fasta_list,
-                           outdir=os.path.join(work_dir, str(issue.id)),
-                           filetype='fasta',
-                           copyflag=True)
+        # Parse description
+        sequences_info = list()
+        for input_line in description:
+            if input_line is not '':
+                sequences_info.append(SequenceInfo(input_line))
+            sequences_info = get_validated_seqids(sequences_info)
+        
+        # Use class from original IRIDA retrieve to extract fastq files
+        extractor = MassExtractor(nas_mnt='/mnt/nas')
+        missing_files, low_quality = extractor.move_files(sequences_info, os.path.join(work_dir, str(issue.id)))
+        if len(low_quality) > 0:
+            redmine_instance.issue.update(resource_id=issue.id, notes='WARNING: The following sample IDs had average read qualities below Q30 and were not retrieved: {}'.format(low_quality))
+        redmine_instance.issue.update(resource_id=issue.id, notes='Files have been extracted and formatted for IRIDA! Files will now be zipped and uploaded to FTP.')
 
-        retrieve_nas_files(seqids=fastq_list,
-                           outdir=os.path.join(work_dir, str(issue.id)),
-                           filetype='fastq',
-                           copyflag=True)
-
-        # Check that we got all the requested files.
-        missing_fastas = check_fastas_present(fasta_list, os.path.join(work_dir, str(issue.id)))
-        missing_fastqs = check_fastqs_present(fastq_list, os.path.join(work_dir, str(issue.id)))
-        if len(missing_fastqs) > 0:
-            redmine_instance.issue.update(resource_id=issue.id,
-                                          notes='WARNING: Could not find the following requested FASTQ SEQIDs on'
-                                                ' the OLC NAS: {}'.format(missing_fastqs))
-
-        if len(missing_fastas) > 0:
-            redmine_instance.issue.update(resource_id=issue.id,
-                                          notes='WARNING: Could not find the following requested FASTA SEQIDs on'
-                                                ' the OLC NAS: {}'.format(missing_fastas))
-        # Rename the files to be consistent with the desired SRA naming scheme
-        # e.g. 2014-SEQ-0349_S11_L001_R1_001.fastq.gz renamed to 2014-SEQ-0349_R1.fastq.gz
-        if sra:
-            # Create the system call
-            rename_cmd = "cd {wd} && rename 's/_S\d+_L001_R(\d)_001/_R$1/' *.gz" \
-                .format(wd=os.path.join(work_dir, str(issue.id)))
-            # Run the command
-            os.system(rename_cmd)
         # Now make a zip folder that we'll upload to the FTP.
         shutil.make_archive(root_dir=os.path.join(work_dir, str(issue.id)),
                             format='zip',
@@ -108,15 +70,16 @@ def externalretrieve_redmine(redmine_instance, issue, work_dir, description):
                                           notes='There are connection issues with the FTP site. Unable to complete '
                                                 'external retrieve process. Please try again later.')
         else:
-            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                          notes='External Retrieve process complete!\n\n'
+            redmine_instance.issue.update(resource_id=issue.id, assigned_to_id=745, # Assign to Brenna
+                                          notes='External IRIDA Retrieve process complete!\nNow Brenna just needs to upload the folder to IRIDA\n\n'
                                                 'Results are available at the following FTP address:\n'
-                                                'ftp://ftp.agr.gc.ca/outgoing/cfia-ak/{}'
-                                          .format(str(issue.id) + '.zip'))
+                                                'ftp://ftp.agr.gc.ca/outgoing/cfia-ac/{}'.format(str(issue.id) + '.zip'))
+    
     except Exception as e:
+        sentry_sdk.capture_exception(e)
         redmine_instance.issue.update(resource_id=issue.id,
-                                      notes='Something went wrong! Send this error traceback to your friendly '
-                                            'neighborhood bioinformatician: {}'.format(e))
+                                      notes='Something went wrong! We log this automatically and will look into the'
+                                            'problem and get back to you with a fix soon.')
 
 
 def upload_to_ftp(local_file):
@@ -134,7 +97,7 @@ def upload_to_ftp(local_file):
         # sometimes. If it did complete, we're good to go. Otherwise, try again.
         try:
             s = ftplib.FTP('ftp.agr.gc.ca', user=FTP_USERNAME, passwd=FTP_PASSWORD, timeout=30)
-            s.cwd('outgoing/cfia-ak')
+            s.cwd('outgoing/cfia-ac')
             f = open(local_file, 'rb')
             s.storbinary('STOR {}'.format(os.path.split(local_file)[1]), f)
             f.close()
@@ -144,7 +107,7 @@ def upload_to_ftp(local_file):
             break
         except socket.timeout:
             s = ftplib.FTP('ftp.agr.gc.ca', user=FTP_USERNAME, passwd=FTP_PASSWORD, timeout=30)
-            s.cwd('outgoing/cfia-ak')
+            s.cwd('outgoing/cfia-ac')
             uploaded_file_size = s.size(os.path.split(local_file)[1])
             quit_ftp(s)
             # s.quit()
@@ -155,14 +118,6 @@ def upload_to_ftp(local_file):
     return upload_successful
 
 
-def check_fastas_present(fasta_list, fasta_dir):
-    missing_fastas = list()
-    for seqid in fasta_list:
-        if len(glob.glob(os.path.join(fasta_dir, seqid + '*.fasta'))) == 0:
-            missing_fastas.append(seqid)
-    return missing_fastas
-
-
 def check_fastqs_present(fastq_list, fastq_dir):
     missing_fastqs = list()
     for seqid in fastq_list:
@@ -171,6 +126,27 @@ def check_fastqs_present(fastq_list, fastq_dir):
             if len(glob.glob(os.path.join(fastq_dir, seqid + ".fastq.gz"))) == 0:
                 missing_fastqs.append(seqid)
     return missing_fastqs
+
+
+def get_validated_seqids(sequences_list):
+    """
+    A inputted list is checked for Seq-ID format, each of the Elements that are validated are returned to the user
+    sequences_list: list of Seq-IDs to be validated
+    """
+
+    validated_sequence_list = list()
+    regex = r'^(2\d{3}-\w{2,10}-\d{3,4})$'
+    import re
+    for sequence in sequences_list:
+        # if re.match(regex, sequence.sample_name):
+        validated_sequence_list.append(sequence)
+        # else:
+        #     raise ValueError("Invalid seq-id \"%s\"" % sequence.sample_name)
+
+    if len(validated_sequence_list) < 1:
+        raise ValueError("Invalid format for redmine request. Couldn't find any fastas or fastqs to extract")
+
+    return validated_sequence_list
 
 
 if __name__ == '__main__':

@@ -68,7 +68,7 @@ def redmine_roga(redmine_instance, issue, work_dir, description):
     if issue.author.id not in permitted_users:
         redmine_instance.issue.update(resource_id=issue.id, status_id=4,
                                       notes='ERROR: Only authorized users are allowed to submit autoROGA requests.'
-                                            'If you think you should be authorized, please contact julie.shay@canada.ca')
+                                            'If you think you should be authorized, please contact ray.allain@inspection.gc.ca')
         quit()
 
     # Setup

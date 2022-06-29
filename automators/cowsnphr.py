@@ -177,7 +177,7 @@ def cowsnphr_redmine(redmine_instance, issue, work_dir, description):
                                           status_id=4,
                                           notes='COWSNPhr process complete!\n\n'
                                                 'Results are available at the following FTP address:\n'
-                                                'ftp://ftp.agr.gc.ca/outgoing/cfia-ak/{}'
+                                                'ftp://ftp.agr.gc.ca/outgoing/cfia-ac/{}'
                                           .format(os.path.split(zip_filepath)[1]))
         else:
             redmine_instance.issue.update(resource_id=issue.id, status_id=4,

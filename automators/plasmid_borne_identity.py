@@ -98,7 +98,7 @@ def plasmid_borne_identity(redmine_instance, issue, work_dir, description):
         activate = 'source /home/ubuntu/miniconda3/bin/activate /mnt/nas2/virtual_environments/cowbat'
         seekr_py = '/mnt/nas2/virtual_environments/geneseekr/bin/GeneSeekr'
         # Run sipprverse with the necessary arguments
-        seekr_cmd = 'python {seekr_py} {blast} -s {seqpath} -r {outpath} -t {dbpath} -c {cutoff} -e {evalue}' \
+        seekr_cmd = 'python {seekr_py} {blast} -s {seqpath} -r {outpath} -t {dbpath} -c {cutoff} -e {evalue} -u' \
             .format(seekr_py=seekr_py,
                     blast=argument_dict['blast'],
                     seqpath=work_dir,
@@ -124,7 +124,7 @@ def plasmid_borne_identity(redmine_instance, issue, work_dir, description):
         # These unfortunate hard coded paths appear to be necessary
         activate = 'source /home/ubuntu/miniconda3/bin/activate /mnt/nas2/virtual_environments/cowbat'
         # Run sipprverse with the necessary arguments
-        mob_cmd = 'python -m spadespipeline.mobrecon -s {seqfolder} -r {targetfolder} -a geneseekr -b {blast}' \
+        mob_cmd = 'python -m genemethods.assemblypipeline.mobrecon -s {seqfolder} -r {targetfolder} -a geneseekr -b {blast}' \
             .format(seqfolder=work_dir,
                     targetfolder=os.path.join(db_path, 'mobrecon'),
                     blast=argument_dict['blast'])

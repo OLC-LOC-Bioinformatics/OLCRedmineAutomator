@@ -69,7 +69,7 @@ def hybridassembly_redmine(redmine_instance, issue, work_dir, description):
         # At this point, zip folder has been created (hopefully) called issue_id.zip in biorequest dir. Upload that
         # to the FTP.
         s = FTP('ftp.agr.gc.ca', user=FTP_USERNAME, passwd=FTP_PASSWORD)
-        s.cwd('outgoing/cfia-ak')
+        s.cwd('outgoing/cfia-ac')
         f = open(os.path.join(work_dir, str(issue.id) + '.zip'), 'rb')
         s.storbinary('STOR {}.zip'.format(str(issue.id)), f)
         f.close()
@@ -90,7 +90,7 @@ def hybridassembly_redmine(redmine_instance, issue, work_dir, description):
 
 def download_dir(ftp_dir, local_dir):
     ftp = FTP('ftp.agr.gc.ca', user=FTP_USERNAME, passwd=FTP_PASSWORD)
-    ftp.cwd(os.path.join('incoming/cfia-ak', ftp_dir))
+    ftp.cwd(os.path.join('incoming/cfia-ac', ftp_dir))
     present_in_folder = ftp.nlst()
     for item in present_in_folder:
         if check_if_file(item, ftp_dir):
@@ -108,7 +108,7 @@ def download_dir(ftp_dir, local_dir):
 
 def check_if_file(file_name, ftp_dir):
     ftp = FTP('ftp.agr.gc.ca', user=FTP_USERNAME, passwd=FTP_PASSWORD)
-    ftp.cwd(os.path.join('incoming/cfia-ak', ftp_dir))
+    ftp.cwd(os.path.join('incoming/cfia-ac', ftp_dir))
     is_file = True
     try:
         ftp.size(file_name)

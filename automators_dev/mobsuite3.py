@@ -4,9 +4,6 @@ import click
 import pickle
 import shutil
 import ftplib
-import sentry_sdk
-from automator_settings import SENTRY_DSN
-from amrsummary import before_send
 from externalretrieve import upload_to_ftp
 from automator_settings import FTP_USERNAME, FTP_PASSWORD
 from nastools.nastools import retrieve_nas_files
@@ -17,7 +14,6 @@ from nastools.nastools import retrieve_nas_files
 @click.option('--work_dir', help='Path to Redmine issue work directory')
 @click.option('--description', help='Path to pickled Redmine description')
 def mob_suite(redmine_instance, issue, work_dir, description):
-    sentry_sdk.init(SENTRY_DSN, before_send=before_send)
     """
     """
     # Unpickle Redmine objects
@@ -52,7 +48,6 @@ def mob_suite(redmine_instance, issue, work_dir, description):
         for fasta in fasta_files:
             seqid = os.path.split(fasta)[-1].split('.')[0]
             # Run mobsuite via docker, since I can't seem to make it work with slurm any other way.
-            # changed the virtual environment from /mob_suite to /dev/cowbat on April 30, 2021 as this contains mobsuite version 3.0.0
             cmd = 'docker run --rm -i -u $(id -u) -v /mnt/nas2:/mnt/nas2 mob_suite:latest /bin/bash -c "source activate ' \
                   '/mnt/nas2/virtual_environments/dev/cowbat && mob_recon -i {input_fasta} -o {output_dir} ' \
                   '--run_typer"'.format(input_fasta=fasta,
@@ -78,17 +73,17 @@ def mob_suite(redmine_instance, issue, work_dir, description):
             redmine_instance.issue.update(resource_id=issue.id, status_id=4,
                                           notes='Mob-suite process complete!\n\n'
                                                 'Results are available at the following FTP address:\n'
-                                                'ftp://ftp.agr.gc.ca/outgoing/cfia-ac/{}'.format(str(issue.id) + '.zip'))
+                                                'ftp://ftp.agr.gc.ca/outgoing/cfia-ak/{}'.format(str(issue.id) + '.zip'))
         else:
             redmine_instance.issue.update(resource_id=issue.id, status_id=4,
                                           notes='Upload of result files was unsuccessful due to FTP connectivity issues. '
                                                 'Please try again later.')
 
+
     except Exception as e:
-        sentry_sdk.capture_exception(e)
         redmine_instance.issue.update(resource_id=issue.id,
-                                      notes='Something went wrong! We log this automatically and will look into the '
-                                            'problem and get back to you with a fix soon.')
+                                      notes='Something went wrong! Send this error traceback to your friendly '
+                                            'neighborhood bioinformatician: {}'.format(e))
 
 
 def verify_fasta_files_present(seqid_list, fasta_dir):
