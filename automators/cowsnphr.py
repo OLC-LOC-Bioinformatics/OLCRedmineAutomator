@@ -144,7 +144,7 @@ def cowsnphr_redmine(redmine_instance, issue, work_dir, description):
         # COWSNPhR
         # These unfortunate hard coded paths appear to be necessary
         activate = 'source /home/ubuntu/miniconda3/bin/activate /mnt/nas2/virtual_environments/vsnp_dev'
-        binary = '/mnt/nas2/virtual_environments/vSNP/cowsnphr/cowsnphr.py'
+        binary = '/mnt/nas2/virtual_environments/vSNP/cowsnphr_src/cowsnphr_src.py'
 
         # Prepare command
         cmd = '{bin} -s {seq_folder} -r {ref_folder} -w /mnt/nas2' \
