@@ -387,7 +387,7 @@ if __name__ == '__main__':
     
     Automators that take a long time (roughly 1 hour or more) to run and will only go when the --long
     flag is passed as an argument:
-    cowsnphr
+    cowsnphr_src
     snvphyl
     
     """
