@@ -13,15 +13,18 @@ from nastools.nastools import retrieve_nas_files
 @click.option('--issue', help='Path to pickled Redmine issue')
 @click.option('--work_dir', help='Path to Redmine issue work directory')
 @click.option('--description', help='Path to pickled Redmine description')
-def geneseekr_redmine(redmine_instance, issue, work_dir, description):
+def sequence_extractory_redmine(redmine_instance, issue, work_dir, description):
     # Unpickle Redmine objects
     redmine_instance = pickle.load(open(redmine_instance, 'rb'))
     issue = pickle.load(open(issue, 'rb'))
     description = pickle.load(open(description, 'rb'))
     # Set and create the directory to store the custom targets
     details_dir = os.path.join(work_dir, 'fasta_details')
+    os.mkdir(details_dir)
     details_file = os.path.join(details_dir, 'fasta_details.txt')
+
     sequence_dir = os.path.join(work_dir, 'sequences')
+    os.mkdir(sequence_dir)
     try:
         # Download the attached file.
         # First, get the attachment id - this seems like a kind of hacky way to do this, but I have yet to figure
@@ -48,7 +51,8 @@ def geneseekr_redmine(redmine_instance, issue, work_dir, description):
                 seqid, contig, start, stop = item.split(';')
                 seqid = seqid.upper()
                 with open(details_file, 'w') as details:
-                    details.write(f'{seqid};{contig};{start}{stop}')
+                    #details.write(f'{seqid};{contig};{start}{stop}')
+                    details.write('{seqid};{contig};{start}{stop}')
                 seqids.append(seqid)
             redmine_instance.issue.update(resource_id=issue.id,
                                           notes='Created sequence extraction details file from provided details')
@@ -110,9 +114,9 @@ def geneseekr_redmine(redmine_instance, issue, work_dir, description):
         # Create a list of all the folders - will be used to clean up the working directory
         folders = glob.glob(os.path.join(work_dir, '*/'))
         # Remove all the folders
-        for folder in folders:
-            if os.path.isdir(folder):
-                shutil.rmtree(folder)
+#        for folder in folders:
+#            if os.path.isdir(folder):
+#                shutil.rmtree(folder)
         # Wrap up issue
         redmine_instance.issue.update(resource_id=issue.id,
                                       uploads=output_list,
@@ -164,4 +168,4 @@ def zip_folder(results_path, output_dir, output_filename):
 
 
 if __name__ == '__main__':
-    geneseekr_redmine()
+    sequence_extractory_redmine()
