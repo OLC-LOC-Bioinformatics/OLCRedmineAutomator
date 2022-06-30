@@ -7,6 +7,7 @@ import subprocess
 from biotools import mash
 from nastools.nastools import retrieve_nas_files
 from externalretrieve import upload_to_ftp
+import csv
 
 
 @click.command()
@@ -161,13 +162,14 @@ def cardrgi_redmine(redmine_instance, issue, work_dir, description):
             #add the filename (which is the seqid) to the first column in all of the res files, then concatenate into a single output csv file
             outputfile = os.path.join(cardrgi_folder, 'CARDRGI_output.csv')
             with open(outputfile, 'w', newline='') as file_output:
-                csv_output = csv.writer(file_output)
+                csv_output = csv.writer(file_output, delimiter='\t')
                 #for fname in glob.glob(os.path.basename(seq_dir, '*.res')):
                 for fname in glob.glob(os.path.join(cardrgi_folder, '*.txt')):
                     fbasename = os.path.basename(fname) #this is to just get the seqid.txt name of file
-                    seqname = os.path.split(fbasename)[1].split('.')[0] #this is to just pull out the seqid
+                    seqname1 = os.path.split(fbasename)[1].split('.')[0] #this is to just pull out the seqid
+                    seqname = os.path.split(seqname1)[1].split('_r')[0] #this is to just pull out the seqid
                     with open(fname, newline='') as f_input:
-                        csv_input = csv.reader(f_input)
+                        csv_input = csv.reader(f_input, delimiter='\t')
                         #Header processing
                         header = csv_input.__next__()
                         header.insert(0,"SeqID")
@@ -228,6 +230,50 @@ def cardrgi_redmine(redmine_instance, issue, work_dir, description):
             for file in output_files:
                 if file.endswith(".json"):
                     shutil.move(os.path.join(sequences_folder,file), os.path.join(json_folder, file))
+
+            #add the filename (which is the seqid) to the first column in all of the res files, then concatenate into a single output csv file
+            outputfile = os.path.join(cardrgi_folder, 'CARDRGI_gene_mapping_output.csv')
+            with open(outputfile, 'w', newline='') as file_output:
+                csv_output = csv.writer(file_output, delimiter='\t')
+                #for fname in glob.glob(os.path.basename(seq_dir, '*.res')):
+                for fname in glob.glob(os.path.join(cardrgi_folder, '*.gene_mapping_data.txt')):
+                    fbasename = os.path.basename(fname) #this is to just get the seqid.txt name of file
+                    seqname1 = os.path.split(fbasename)[1].split('.')[0] #this is to just pull out the seqid
+                    seqname = os.path.split(seqname1)[1].split('_r')[0] #this is to just pull out the seqid
+                    with open(fname, newline='') as f_input:
+                        csv_input = csv.reader(f_input, delimiter='\t')
+                        #Header processing
+                        header = csv_input.__next__()
+                        header.insert(0,"SeqID")
+
+                        csv_output.writerow(header)
+                        for row in csv_input:
+                            print(row)
+                            row.insert(0,seqname) #this adds the seqid to the file before concatenating
+                            #row.insert(0,fname)
+                            csv_output.writerow(row)
+
+            #add the filename (which is the seqid) to the first column in all of the res files, then concatenate into a single output csv file
+            outputfile2 = os.path.join(cardrgi_folder, 'CARDRGI_allele_mapping_output.csv')
+            with open(outputfile2, 'w', newline='') as file_output:
+                csv_output = csv.writer(file_output, delimiter='\t')
+                #for fname in glob.glob(os.path.basename(seq_dir, '*.res')):
+                for fname in glob.glob(os.path.join(cardrgi_folder, '*.allele_mapping_data.txt')):
+                    fbasename = os.path.basename(fname) #this is to just get the seqid.txt name of file
+                    seqname1 = os.path.split(fbasename)[1].split('.')[0] #this is to just pull out the seqid
+                    seqname = os.path.split(seqname1)[1].split('_r')[0] #this is to just pull out the seqid
+                    with open(fname, newline='') as f_input:
+                        csv_input = csv.reader(f_input, delimiter='\t')
+                        #Header processing
+                        header = csv_input.__next__()
+                        header.insert(0,"SeqID")
+
+                        csv_output.writerow(header)
+                        for row in csv_input:
+                            print(row)
+                            row.insert(0,seqname) #this adds the seqid to the file before concatenating
+                            #row.insert(0,fname)
+                            csv_output.writerow(row)
 
 
         # Zip card-rgi output
