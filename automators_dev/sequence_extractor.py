@@ -40,9 +40,9 @@ def geneseekr_redmine(redmine_instance, issue, work_dir, description):
                 for line in details:
                     seqid, contig, start, stop = line.split(';')
                     seqids.append(seqid)
-                    redmine_instance.issue.update(resource_id=issue.id,
-                                                  notes='Extracted the following SEQIDs from the supplied list:\n'
-                                                        '{seqids}'.format(seqids='\n'.join(seqids)))
+            redmine_instance.issue.update(resource_id=issue.id,
+                                          notes='Extracted the following SEQIDs from the supplied list:\n'
+                                                '{seqids}'.format(seqids='\n'.join(seqids)))
         else:
             for item in description:
                 seqid, contig, start, stop = item.split(';')
