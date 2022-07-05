@@ -208,7 +208,7 @@ def geneseekr_redmine(redmine_instance, issue, work_dir, description):
         os.system(geneseekr_script)
 
         # Zip output
-        output_filename = 'geneseekr_output'
+        output_filename = 'geneseekr_output_{}'.format(issue.id)
         zip_filepath = zip_folder(results_path=os.path.join(work_dir, 'reports'),
                                   output_dir=work_dir,
                                   output_filename=output_filename)

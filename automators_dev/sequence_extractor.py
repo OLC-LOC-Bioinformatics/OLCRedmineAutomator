@@ -94,7 +94,7 @@ def geneseekr_redmine(redmine_instance, issue, work_dir, description):
         os.system(script)
 
         # Zip output
-        output_filename = 'sequence_extractor_output'
+        output_filename = 'sequence_extractor_output_{}'.format(issue.id)
         zip_filepath = zip_folder(results_path=os.path.join(sequence_dir, 'output'),
                                   output_dir=work_dir,
                                   output_filename=output_filename)
