@@ -32,24 +32,19 @@ A note on Sample IDs:
 LSTS ID should be parsed from SampleSheet.csv by the COWBAT pipeline, and is available within the combinedMetadata.csv
 file. The LSTS ID is available under the 'SampleName' column in combinedMetadata.csv
 
-If you've gotten a message that something is wrong but you have a good reason to go ahead and make the report, add a 
-line at the end of the description that says FORCE in order to make the automator make the report anyways.
 
 """
 
 lab_info = {
-    'GTA': ('2301 Midland Ave., Scarborough, ON, M1P 4R7', '416-952-3203'),
-    'BUR': ('3155 Willington Green, Burnaby, BC, V5G 4P2', '604-292-6028'),
-    'OLC': ('960 Carling Ave, Building 22 CEF, Ottawa, ON, K1A 0Y9', '613-759-1267'),
-    'FFFM': ('960 Carling Ave, Building 22 CEF, Ottawa, ON, K1A 0Y9', '613-759-1220'),
-    'DAR': ('1992 Agency Dr., Dartmouth, NS, B2Y 3Z7', '902-536-1012'),
-    'CAL': ('3650 36 Street NW, Calgary, AB, T2L 2L1', '403-338-5200'),
-    'STH': ('3400 Casavant Boulevard W., St. Hyacinthe, QC, J2S 8E3', '450-768-6800')
+    'GTA': ('2301 Midland Ave., Scarborough, ON, M1P 4R7', ''),
+    'BUR': ('3155 Willington Green, Burnaby, BC, V5G 4P2', ''),
+    'OLC': ('960 Carling Ave, Building 22 CEF, Ottawa, ON, K1A 0Y9', ''),
+    'FFFM': ('960 Carling Ave, Building 22 CEF, Ottawa, ON, K1A 0Y9', ''),
+    'DAR': ('1992 Agency Dr., Dartmouth, NS, B2Y 3Z7', ''),
+    'CAL': ('3650 36 Street NW, Calgary, AB, T2L 2L1', ''),
+    'STH': ('3400 Casavant Boulevard W., St. Hyacinthe, QC, J2S 8E3', '')
 }
 
-# User level security to ensure only permitted users can submit AutoROGA requests
-# Permitted users - Andrew, Adam, Julie, Cathy, Paul, Martine, Ray.
-permitted_users = [296, 106, 429, 225, 226, 448, 529]
 
 @click.command()
 @click.option('--redmine_instance', help='Path to pickled Redmine API instance')
@@ -64,12 +59,6 @@ def redmine_roga(redmine_instance, issue, work_dir, description):
     redmine_instance = pickle.load(open(redmine_instance, 'rb'))
     issue = pickle.load(open(issue, 'rb'))
     description = pickle.load(open(description, 'rb'))
-
-    if issue.author.id not in permitted_users:
-        redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                      notes='ERROR: Only authorized users are allowed to submit autoROGA requests.'
-                                            'If you think you should be authorized, please contact ray.allain@inspection.gc.ca')
-        quit()
 
     # Setup
     amended_report_id = None
@@ -226,8 +215,8 @@ def redmine_roga(redmine_instance, issue, work_dir, description):
             }
         ]
 
-    redmine_instance.issue.update(resource_id=issue.id, uploads=output_list, status_id=4, assigned_to_id=529,  # Assign to Ray
-                                  notes='Generated ROGA successfully. Completed PDF report is attached.')
+        redmine_instance.issue.update(resource_id=issue.id, uploads=output_list, status_id=4,
+                                      notes='Generated ROGA successfully. Completed PDF report is attached.')
 
 
 def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, amended_id):
@@ -249,6 +238,12 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
     gdcs_reports = extract_report_data.get_gdcs(seq_list)
     gdcs_dict = extract_report_data.generate_gdcs_dict(gdcs_reports)
 
+    # Grab the virulence reports
+    virulence_reports = extract_report_data.get_virulence(seq_list)
+    virulence_dict = extract_report_data.generate_virulence_dict(
+        virulence_reports
+    )
+    
     # Create our idiot proofing list. There are a bunch of things that can go wrong that should make us not send
     # out reports. As we go through data retrieval/report generation, add things that are wrong to the list, and users
     # will get a message saying what's wrong, no report will be generated unless user adds the FORCE flag.
@@ -257,8 +252,8 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
     date = datetime.today().strftime('%Y-%m-%d')
     year = datetime.today().strftime('%Y')
     # Follow our fiscal year - anything before April is actually previous year.
-    if datetime.now().month < 4:
-        year = int(year) - 1
+    #if datetime.now().month < 4:
+    #    year = int(year) - 1
 
     # PAGE SETUP
     geometry_options = {"tmargin": "2cm",
@@ -377,7 +372,7 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
             with doc.create(pl.Tabular('lcr', booktabs=True)) as table:
                 table.add_row(bold('Laboratory'),
                               bold('Address'),
-                              bold('Tel #'))
+                              bold(''))
                 table.add_row(lab, lab_info[lab][0], lab_info[lab][1])
 
             # AMENDMENT FIELD
@@ -410,7 +405,7 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
             with doc.create(pl.Tabular('lcr', booktabs=True)) as table:
                 table.add_row(bold('Laboratory'),
                               bold('Address'),
-                              bold('Tel #'))
+                              bold(''))
                 table.add_row(lab, lab_info[lab][0], lab_info[lab][1])
 
         # TEXT SUMMARY
@@ -492,7 +487,11 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
                         # ID
                         # lsts_id = df.loc[df['SeqID'] == sample_id]['SampleName'].values[0]
                         lsts_id = seq_lsts_dict[sample_id]
-
+                        # lsts_id = pl.NoEscape(r'{\footnotesize {' + text + '}}')
+                        # \rightline{text}
+                        # lsts_id = pl.NoEscape(r'{\rightline {' + seq_lsts_dict[sample_id] + '}}')
+                        left = pl.FlushLeft()
+                        left.append(lsts_id)
                         # Genus
                         genus = df.loc[df['SeqID'] == sample_id]['Genus'].values[0]
 
@@ -519,7 +518,7 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
                         if virulence == '':
                             virulence = '-'
 
-                        table.add_row((lsts_id, r72h, groel, virulence, mlst, rmlst))
+                        table.add_row((left, r72h, groel, virulence, mlst, rmlst))
                     table.add_hline()
                 create_caption(genesippr_section, 'a', "+ indicates marker presence : "
                                                        "- indicates marker was not detected")
@@ -533,12 +532,13 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
                                        bold(pl.NoEscape(r'hlyA{\footnotesize \textsuperscript {a}}')),
                                        bold(pl.NoEscape(r'eae{\footnotesize \textsuperscript {a}}')),
                                        bold(pl.NoEscape(r'aggR{\footnotesize \textsuperscript {a}}')),
+                                       bold(pl.NoEscape(r'aaiC{\footnotesize \textsuperscript {a}}')),
                                        bold(pl.NoEscape(r'MLST')),
                                        bold(pl.NoEscape(r'rMLST')),
                                        )
 
             with doc.create(pl.Subsection('GeneSeekr Analysis', numbering=False)) as genesippr_section:
-                with doc.create(pl.Tabularx('|X|c|c|c|c|c|c|c|c|')) as table:
+                with doc.create(pl.Tabularx('|X|c|c|c|c|c|c|c|c|c|')) as table:
                     # Header
                     table.add_hline()
                     table.add_row(genesippr_table_columns)
@@ -549,8 +549,10 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
 
                         # ID
                         # lsts_id = df.loc[df['SeqID'] == sample_id]['SampleName'].values[0]
-                        lsts_id = pl.NoEscape(r'' + seq_lsts_dict[sample_id].replace(' ', '\\newline '))
- 
+                        lsts_id = seq_lsts_dict[sample_id].replace(' ', '\\newline ')
+                        # lsts_id = pl.NoEscape(r'{\rightline {' + seq_lsts_dict[sample_id].replace(' ', '\\newline ') + '}}')
+                        left = pl.FlushLeft()
+                        left.append(lsts_id)
                         # Genus (pulled from 16S)
                         genus = df.loc[df['SeqID'] == sample_id]['Genus'].values[0]
 
@@ -562,6 +564,12 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
 
                         # Verotoxin
                         verotoxin = df.loc[df['SeqID'] == sample_id]['Vtyper_Profile'].values[0]
+
+                        # aaiC
+                        if sample_id in virulence_dict:
+                            aaiC = virulence_dict[sample_id]
+                        else:
+                            aaiC = '-'
 
                         # MLST/rMLST
                         mlst = str(df.loc[df['SeqID'] == sample_id]['MLST_Result'].values[0]).replace('-', 'New')
@@ -579,7 +587,7 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
                         if 'aggR' in marker_list:
                             aggr = '+'
 
-                        table.add_row((lsts_id, uida, fixed_serotype, verotoxin, hlya, eae, aggr, mlst, rmlst))
+                        table.add_row((left, uida, fixed_serotype, verotoxin, hlya, eae, aggr, aaiC, mlst, rmlst))
                     table.add_hline()
 
                 create_caption(genesippr_section, 'a', "+ indicates marker presence : "
@@ -608,7 +616,9 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
                         # ID
                         # lsts_id = df.loc[df['SeqID'] == sample_id]['SampleName'].values[0]
                         lsts_id = seq_lsts_dict[sample_id]
-
+                        # lsts_id = pl.NoEscape(r'{\rightline {' + seq_lsts_dict[sample_id] + '}}')
+                        left = pl.FlushLeft()
+                        left.append(lsts_id)
                         # Genus
                         genus = df.loc[df['SeqID'] == sample_id]['Genus'].values[0]
 
@@ -626,7 +636,7 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
                         if 'inlJ' in marker_list:
                             inlj = '+'
 
-                        table.add_row((lsts_id, igs, hlya, inlj, mlst, rmlst))
+                        table.add_row((left, igs, hlya, inlj, mlst, rmlst))
                     table.add_hline()
                 create_caption(genesippr_section, 'a', "+ indicates marker presence : "
                                                        "- indicates marker was not detected")
@@ -635,9 +645,9 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
         if genus == 'Salmonella':
             genesippr_table_columns = (bold('ID'),
                                        bold(pl.NoEscape(r'Serovar{\footnotesize \textsuperscript {a}}')),
-                                       bold(pl.NoEscape(r'Serogroup{\footnotesize \textsuperscript {a,b}}')),
-                                       bold(pl.NoEscape(r'H1{\footnotesize \textsuperscript {a}}')),
-                                       bold(pl.NoEscape(r'H2{\footnotesize \textsuperscript {a}}')),
+                                       # bold(pl.NoEscape(r'Serogroup{\footnotesize \textsuperscript {a,b}}')),
+                                       # bold(pl.NoEscape(r'H1{\footnotesize \textsuperscript {a}}')),
+                                       # bold(pl.NoEscape(r'H2{\footnotesize \textsuperscript {a}}')),
                                        bold(pl.NoEscape(r'invA{\footnotesize \textsuperscript {b}}')),
                                        bold(pl.NoEscape(r'stn{\footnotesize \textsuperscript {b}}')),
                                        bold(pl.NoEscape(r'MLST')),
@@ -645,7 +655,8 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
                                        )
 
             with doc.create(pl.Subsection('GeneSeekr Analysis', numbering=False)) as genesippr_section:
-                with doc.create(pl.Tabularx('|X|p{2.3cm}|c|c|c|c|c|c|c|')) as table:
+                # with doc.create(pl.Tabularx('|X|p{2.3cm}|c|c|c|c|c|c|c|')) as table:
+                with doc.create(pl.Tabularx('|X|p{2.3cm}|c|c|c|c|')) as table:
                     # Header
                     table.add_hline()
                     table.add_row(genesippr_table_columns)
@@ -656,7 +667,9 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
 
                         # ID
                         # lsts_id = df.loc[df['SeqID'] == sample_id]['SampleName'].values[0]
+                        # pl.NoEscape(r'{\footnotesize {' + text + '}}')
                         lsts_id = pl.NoEscape(r'' + seq_lsts_dict[sample_id].replace(' ', '\\newline '))
+
                         # MLST/rMLST
                         mlst = str(df.loc[df['SeqID'] == sample_id]['MLST_Result'].values[0]).replace('-', 'New')
                         rmlst = str(df.loc[df['SeqID'] == sample_id]['rMLST_Result'].values[0]).replace('-', 'New')
@@ -685,9 +698,9 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
                                 serovar = pl.NoEscape(r'' + serovar_with_newline)
 
                         # SISTR Serogroup, H1, H2
-                        sistr_serogroup = df.loc[df['SeqID'] == sample_id]['SISTR_serogroup'].values[0]
-                        sistr_h1 = df.loc[df['SeqID'] == sample_id]['SISTR_h1'].values[0].strip(';')
-                        sistr_h2 = df.loc[df['SeqID'] == sample_id]['SISTR_h2'].values[0].strip(';')
+                        # sistr_serogroup = df.loc[df['SeqID'] == sample_id]['SISTR_serogroup'].values[0]
+                        # sistr_h1 = df.loc[df['SeqID'] == sample_id]['SISTR_h1'].values[0].strip(';')
+                        # sistr_h2 = df.loc[df['SeqID'] == sample_id]['SISTR_h2'].values[0].strip(';')
 
                         # Markers
                         marker_list = df.loc[df['SeqID'] == sample_id]['GeneSeekr_Profile'].values[0]
@@ -697,7 +710,9 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
                         if 'stn' in marker_list:
                             stn = '+'
 
-                        table.add_row((lsts_id, serovar, sistr_serogroup, sistr_h1, sistr_h2, inva, stn, mlst, rmlst))
+                        # table.add_row((lsts_id, serovar, sistr_serogroup, sistr_h1, sistr_h2, inva, stn, mlst, rmlst))
+                        table.add_row((lsts_id, serovar, inva, stn, mlst, rmlst))
+
                     table.add_hline()
 
                 create_caption(genesippr_section, 'a', "Predictions conducted using SISTR "
@@ -707,9 +722,7 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
 
         # AMR TABLE (VTEC and Salmonella only)
         create_amr_profile = False  # only create if an AMR profile exists for one of the provided samples
-# FSSSC or whatever the acronym is doesn't want to see AMR results,
-# so I'm commenting this out for now.
-#        amr_samples = []  # keep track of which samples to create rows for
+        amr_samples = []  # keep track of which samples to create rows for
 
         # Grab AMR profile as a pre-check to see if we should even create the AMR Profile table
 #        for sample_id, df in metadata_reports.items():
@@ -758,6 +771,8 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
                                     resistance = value.resistance
                                     res_to_write = resistance
                                     lsts_id = seq_lsts_dict[sample_id]
+
+                                    # lsts_id = pl.NoEscape(r'{\rightline {' + seq_lsts_dict[sample_id] + '}}')
                                     # If sample we're on is different from previous sample, line goes all the
                                     # way across the table.
                                     if lsts_id != previous_id:
@@ -776,7 +791,8 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
                                         id_to_write = ''
                                     previous_id = lsts_id
                                     previous_resistance = resistance
-
+                                    left = pl.FlushLeft()
+                                    left.append(id_to_write)
                                     # Gene
                                     gene = value.gene
 
@@ -784,7 +800,7 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
                                     identity = value.percent_id
 
                                     # Add row
-                                    table.add_row((id_to_write, res_to_write, gene, identity))
+                                    table.add_row((left, res_to_write, gene, identity))
                     # Close off table
                     table.add_hline()
 
@@ -810,6 +826,9 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
                     # Grab values
                     # lsts_id = df.loc[df['SeqID'] == sample_id]['SampleName'].values[0]
                     lsts_id = seq_lsts_dict[sample_id]
+                    # lsts_id = pl.NoEscape(r'{\rightline {' + seq_lsts_dict[sample_id] + '}}')
+                    left = pl.FlushLeft()
+                    left.append(lsts_id)
                     total_length = df.loc[df['SeqID'] == sample_id]['TotalLength'].values[0]
                     average_coverage_depth = df.loc[df['SeqID'] == sample_id]['AverageCoverageDepth'].values[0]
 
@@ -828,14 +847,38 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
                         idiot_proofing_list.append('{} failed GDCS validation'.format(sample_id))
 
                     # Add row
-                    table.add_row((lsts_id, total_length, average_coverage_depth, matches, passfail))
+                    table.add_row((left, total_length, average_coverage_depth, matches, passfail))
                 table.add_hline()
 
         # PIPELINE METADATA TABLE
-        pipeline_metadata_columns = (bold('ID'),
+#        pipeline_metadata_columns = (bold('ID'),
+#                                     bold('Seq ID'),
+#                                     bold('Pipeline Version'),
+#                                     bold('Database Version'))
+        # if all of the IDs have a database date column, then add that to the next table
+        add_date_column = True
+        for sample_id, df in metadata_reports.items():
+            try:
+                if df.loc[df['SeqID'] == sample_id]['PipelineDate'].values[0] == "":
+                    add_date_column = False
+                    break
+            except:
+                add_date_column = False
+                break
+        if add_date_column:
+            pipeline_metadata_columns = (bold('ID'),
+                                     bold('Seq ID'),
+                                     bold('Pipeline Version'),
+                                     bold('Database Version'),
+                                     bold('Pipeline Date'))
+            columnspec = pl.Tabular('|c|c|c|c|c|')
+        else:
+            pipeline_metadata_columns = (bold('ID'),
                                      bold('Seq ID'),
                                      bold('Pipeline Version'),
                                      bold('Database Version'))
+            columnspec = pl.Tabular('|c|c|c|c|')
+
 
         with doc.create(pl.Subsection('Pipeline Metadata', numbering=False)):
             with doc.create(pl.Tabular('|c|c|c|c|')) as table:
@@ -850,6 +893,9 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
                     # ID
                     # lsts_id = df.loc[df['SeqID'] == sample_id]['SampleName'].values[0]
                     lsts_id = seq_lsts_dict[sample_id]
+                    left = pl.FlushLeft()
+                    left.append(lsts_id)
+                    # lsts_id = pl.NoEscape(r'{\rightline {' + seq_lsts_dict[sample_id] + '}}')
 
                     # Pipeline version
                     try:
@@ -862,7 +908,12 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
                         database_version = pipeline_version
 
                     # Add row
-                    table.add_row((lsts_id, sample_id, pipeline_version, database_version))
+                    if add_date_column:
+                        pipeline_date = df.loc[df['SeqID'] == sample_id]['PipelineDate'].values[0]
+                        table.add_row((left, sample_id, pipeline_version, database_version, pipeline_date))
+                    else:
+                        table.add_row((left, sample_id, pipeline_version, database_version))
+
 
                 table.add_hline()
 
@@ -888,6 +939,24 @@ def generate_roga(seq_lsts_dict, genus, lab, source, work_dir, amendment_flag, a
 
     pdf_file += '.pdf'
     return pdf_file, idiot_proofing_list
+
+
+def pubmlst(seqid, assembly):
+    # sort of stolen from code written by Keith Jolley
+    uri = 'http://rest.pubmlst.org/db/pubmlst_rmlst_seqdef_kiosk/schemes/1/sequence'
+    with open(assembly, 'r') as x:
+        fasta = x.read()
+    payload = '{"base64":true,"details":true,"sequence":"' + base64.b64encode(fasta.encode()).decode() + '"}'
+    response = requests.post(uri, data=payload)
+    if response.status_code == requests.codes.ok:
+        data = response.json()
+        try:
+            print(data['fields']['rST'])
+        except KeyError:
+            print("No match")
+            sys.exit(0)
+    else:
+        print(response.text)
 
 
 def parse_seqid_list(description, starting_row=3):
@@ -945,7 +1014,7 @@ def produce_header_footer():
     with header.create(pl.Foot("C")):
         with header.create(pl.Tabular('lcr')) as table:
             table.add_row('', bold('Data interpretation guidelines can be found in RDIMS document ID: 10401305'), '')
-            table.add_row('', bold('This report was generated with OLC AutoROGA v1.2'), '')
+            table.add_row('', bold('This report was generated with OLC AutoROGA v1.4'), '')
     return header
 
 
