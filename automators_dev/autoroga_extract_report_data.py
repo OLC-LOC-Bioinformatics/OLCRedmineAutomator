@@ -6,7 +6,7 @@ import pandas as pd
 from automator_settings import ASSEMBLIES_FOLDER, MERGED_ASSEMBLIES_FOLDER
 
 
-def create_report_dictionary(report_list, seq_list, id_column='SeqID'):
+def create_report_dictionary(report_list, seq_list, id_column='SeqID') -> dict:
     """
     :param report_list: List of paths to report files
     :param seq_list: List of OLC Seq IDs
@@ -25,15 +25,18 @@ def create_report_dictionary(report_list, seq_list, id_column='SeqID'):
             df = pd.read_csv(report)
         except:
             continue
-        # might need to use from pandas.io.parser import CParserError try/except with CParserError for this
+        # might need to use from pandas.io.parser import CParserError
+        # try/except with CParserError for this
 
         # Accomodating old reports coming up
         try:
             samples = df[id_column]
         except KeyError:
-            samples = df['SampleName']  # This was the old column name for SeqID
+            # This was the old column name for SeqID
+            samples = df['SampleName']
 
-        # Check all of our sequences of interest to see if they are in the combinedMetadata file
+        # Check all of our sequences of interest to see if they are in the
+        # combinedMetadata file
         for seq in seq_list:
             if seq in samples.values:
                 # Associate dataframe with sampleID
@@ -41,7 +44,7 @@ def create_report_dictionary(report_list, seq_list, id_column='SeqID'):
 
     ordered_dict = collections.OrderedDict(sorted(report_dict.items()))
     if not report_dict:
-        print("Ack! create_report_dictionary is returning an empty dictionary.")
+        print("Create_report_dictionary is returning an empty dictionary")
     return ordered_dict
 
 
@@ -69,6 +72,27 @@ def get_gdcs(seq_list):
     gdcs_reports += glob.glob(os.path.join(MERGED_ASSEMBLIES_FOLDER, '*/reports/gdcs.csv'))
     gdcs_report_dict = create_report_dictionary(report_list=gdcs_reports, seq_list=seq_list, id_column='Strain')
     return gdcs_report_dict
+
+
+def get_virulence(seq_list):
+    """
+    :param seq_list: List of OLC Seq IDs
+    :return: Dictionary containing Seq IDs as keys and virulence dataframes
+    as values
+    """
+    # Grab every single virulence.csv file we have
+    virulence_reports = glob.glob(
+        os.path.join(ASSEMBLIES_FOLDER, '*/reports/virulence.csv')
+    )
+    virulence_reports += glob.glob(
+        os.path.join(MERGED_ASSEMBLIES_FOLDER, '*/reports/virulence.csv')
+    )
+    virulence_report_dict = create_report_dictionary(
+        report_list=virulence_reports,
+        seq_list=seq_list,
+        id_column='Strain'
+    )
+    return virulence_report_dict
 
 
 def validate_genus(seq_list, genus):
@@ -282,7 +306,18 @@ def parse_geneseekr_profile(value):
     :return: List of markers parsed from value
     """
     detected_markers = []
-    marker_list = ['invA', 'stn', 'IGS', 'hlyA', 'inlJ', 'VT1', 'VT2', 'VT2f', 'uidA', 'eae']
+    marker_list = [
+        'invA',
+        'stn',
+        'IGS',
+        'hlyA',
+        'inlJ',
+        'VT1',
+        'VT2',
+        'VT2f',
+        'uidA',
+        'eae'
+    ]
     markers = value.split(';')
     for marker in markers:
         if marker in marker_list:
@@ -290,7 +325,7 @@ def parse_geneseekr_profile(value):
     return detected_markers
 
 
-def generate_gdcs_dict(gdcs_reports):
+def generate_gdcs_dict(gdcs_reports) -> dict:
     """
     :param gdcs_reports: Dictionary derived from get_gdcs() function
     :return: Dictionary containing parsed GDCS values
@@ -317,3 +352,21 @@ def generate_gdcs_dict(gdcs_reports):
                 print("GDCS matches is not a fraction--" + str(matches))
         gdcs_dict[sample_id] = (matches, passfail)
     return gdcs_dict
+
+
+def generate_virulence_dict(virulence_reports) -> dict:
+    """
+    :param virulence_reports: Dictionary derived from get_virulence() function
+    :return: Dictionary containing parsed virulence values
+    """
+    # Initialise an empty dictionary to store the virulence values
+    virulence_dict = {}
+    for sample_id, df in virulence_reports.items():
+        # Set the gene name to the value in the 'Gene' column for the sample
+        gene_name = df.loc[df['Strain'] == sample_id]['Gene'].values[0]
+        # Check if the gene name is aaiC
+        if gene_name == 'aaiC':
+            # Update the dictionary with the virulence gene
+            virulence_dict[sample_id] = '+'
+    
+    return virulence_dict
