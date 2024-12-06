@@ -564,7 +564,8 @@ def _process_downloaded_data(
         local_raw_folder (str): Path to the raw sequence data directory.
         run_name (str): Name of the sequencing run.
         work_dir (str): The working directory where files are downloaded.
-        machine (str): Type of sequencing machine ('miseq', 'nextseq', or 'other').
+        machine (str): Type of sequencing machine ('miseq', 'nextseq', or
+        'other').
 
     Returns:
         List[Dict[str, str]]: A list containing information about the legacy
@@ -584,22 +585,8 @@ def _process_downloaded_data(
                 os.path.join(local_raw_folder, file)
             )
 
-    # Copy the SampleSheet.csv file for 'miseq' and 'nextseq' machines
-    sample_sheet_src = os.path.join(
-        downloaded_folder,
-        'SampleSheet.csv'
-    )
-    sample_sheet_dest = os.path.join(
-        work_dir,
-        'SampleSheet_{run_name}.csv'.format(run_name=run_name)
-    )
-
-    # Check if the SampleSheet.csv exists before copying
-    if os.path.exists(sample_sheet_src):
-        shutil.copyfile(sample_sheet_src, sample_sheet_dest)
-
     # Copy the legacy report file to the working directory
-    legacy_report = 'legacy_combinedMetadata.csv'
+    legacy_report = 'legacy_combinedMetadata'
     legacy_report_src = os.path.join(
         downloaded_folder,
         'reports',
@@ -607,7 +594,7 @@ def _process_downloaded_data(
     )
     legacy_report_dest = os.path.join(
         work_dir,
-        'legacy_combinedMetadata_{run_name}.csv'.format(run_name=run_name)
+        '{legacy_report}_{run_name}.csv'.format(run_name=run_name)
     )
 
     # Check if the legacy report file exists before copying
@@ -619,7 +606,7 @@ def _process_downloaded_data(
     if os.path.exists(legacy_report_dest):
         output_dict = {
             'path': legacy_report_dest,
-            'filename': '{legacy_report}_{run_name}'.format(
+            'filename': '{legacy_report}_{run_name}.csv'.format(
                 legacy_report=legacy_report,
                 run_name=run_name
             )
@@ -648,31 +635,6 @@ def _combine_nextseq_files(
         List[Dict[str, str]]: A list containing information about the combined
             legacy report file copied to the Redmine request.
     """
-    # Collect the SampleSheet.csv files
-    sample_sheet_files = glob(
-        os.path.join(
-            work_dir,
-            '*',
-            'SampleSheet.csv'
-        )
-    )
-
-    # Set the name and path of the combined sample sheet
-    combined_sample_sheet = os.path.join(
-        work_dir,
-        'SampleSheet.csv'
-    )
-    
-    # Write the all the sample sheets to the combined sample sheet
-    with open(combined_sample_sheet, 'w', encoding='utf-8') as outfile:
-        for iterator, file in enumerate(sample_sheet_files):
-            with open(file) as current_sheet:
-                content = current_sheet.read()
-                if iterator > 0:
-                    # Skip headers for subsequent files
-                    content = '\n'.join(content.strip().split('\n')[1:])
-                outfile.write(content)
-                outfile.write('\n')
 
     # Combine the legacy_combinedMetadata.csv files
     metadata_files = glob(

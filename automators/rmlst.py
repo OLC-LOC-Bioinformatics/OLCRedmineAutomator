@@ -17,6 +17,7 @@ import click
 from nastools.nastools import retrieve_nas_files
 import requests
 import sentry_sdk
+from automator_settings import SENTRY_DSN
 
 # Local imports
 from methods import (
@@ -339,8 +340,8 @@ Get.combinealleles('{database_version_path}', alleles)
             resource_id=issue.id,
             uploads=output_list,
             status_id=4,
-            notes='rMLST analysis with GeneSeekr complete!'
-        )
+            notes='rMLST analysis with GeneSeekr complete!')
+
     except Exception as exc:
         sentry_sdk.capture_exception(exc)
         redmine_instance.issue.update(

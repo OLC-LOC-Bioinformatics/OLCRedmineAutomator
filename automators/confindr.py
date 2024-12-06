@@ -30,11 +30,11 @@ def confindr_redmine(redmine_instance, issue, work_dir, description):
 
     # Create folder to drop FASTQ files
     raw_reads_folder = os.path.join(work_dir, 'raw_reads')
-    os.mkdir(raw_reads_folder)
+    os.makedirs(raw_reads_folder, exist_ok=True)
 
     # Create output folder
     output_folder = os.path.join(work_dir, 'output')
-    os.mkdir(output_folder)
+    os.makedirs(output_folder, exist_ok=True)
 
     # Extract FASTQ files.
     retrieve_nas_files(seqids=seqids, outdir=raw_reads_folder, filetype='fastq', copyflag=False)
@@ -55,7 +55,7 @@ def confindr_redmine(redmine_instance, issue, work_dir, description):
                                     output_folder=output_folder,
                                     confindr_db=confindr_db)
 
-    # Create another shell script to execute within the PlasmidExtractor conda environment
+    # Create another shell script to execute within the confindr conda environment
     template = "#!/bin/bash\n{} && {}".format(activate, cmd)
     confindr_script = os.path.join(work_dir, 'run_confindr.sh')
     with open(confindr_script, 'w+') as file:

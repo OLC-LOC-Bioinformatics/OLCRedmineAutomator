@@ -5,7 +5,14 @@ import pickle
 import shutil
 import pandas
 from nastools.nastools import retrieve_nas_files
-from externalretrieve import upload_to_ftp
+# Dropbox
+from upload_to_dropbox import upload_to_dropbox
+from tokens import (
+    DROPBOX_ACCESS_TOKEN,
+    DROPBOX_APP_KEY, 
+    DROPBOX_APP_SECRET,
+    DROPBOX_REFRESH_TOKEN
+)
 
 
 @click.command()
@@ -44,7 +51,7 @@ def minimap2_redmine(redmine_instance, issue, work_dir, description):
 
         # Create folder to drop FASTQ files
         seq_folder = os.path.join(work_dir, 'sequences')
-        os.mkdir(seq_folder)
+        os.makedirs(seq_folder, exist_ok=True)
 
         # Create output folder which will be zipped later
         output_folder = os.path.join(work_dir, 'output')
@@ -94,21 +101,30 @@ def minimap2_redmine(redmine_instance, issue, work_dir, description):
                                   output_filename=output_filename)
         zip_filepath += '.zip'
 
-        upload_successful = upload_to_ftp(local_file=zip_filepath)
-        # Prepare upload
-        if upload_successful:
-            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                          notes='Minimap2 process complete!\n\n'
-                                                'Results are available at the following FTP address:\n'
-                                                'ftp://ftp.agr.gc.ca/outgoing/cfia-ac/{}'
-                                          .format(os.path.split(zip_filepath)[1]))
+                # Upload the zip file to Dropbox
+        download_link = upload_to_dropbox(
+            access_token=DROPBOX_ACCESS_TOKEN,
+            refresh_token=DROPBOX_REFRESH_TOKEN,
+            app_key=DROPBOX_APP_KEY,
+            app_secret=DROPBOX_APP_SECRET,
+            local_file_path=zip_filepath
+        )
+
+        if download_link:
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=4,
+                notes='Minimap2 analysis complete!\n\n'
+                      'Results are available at the following URL:\n'
+                      '{url}'.format(url=download_link)
+            )
         else:
-            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                          notes='Upload of result files was unsuccessful due to FTP connectivity '
-                                                'issues. '
-                                                'Please try again later.')
-        # Remove the zip file
-#        os.remove(zip_filepath)
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=4,
+                notes='Upload of results was unsuccessful due to '
+                'connectivity issues. Please try again later.'
+            )
 
         # Clean up files
         shutil.rmtree(output_folder)

@@ -149,6 +149,15 @@ def drep_redmine(redmine_instance, issue, work_dir, description):
             lncmd = 'ln -s {src}*.fasta {dst}'.format(src=src,
                                                       dst=dst)
             os.system(lncmd)
+            #also do this for the atcc sequences
+            src2 = '/mnt/nas2/processed_sequence_data/atcc/listeria/BestAssemblies/'
+            fasta_dir = os.path.join(work_dir, 'fastas')
+            if not os.path.isdir(fasta_dir):
+                os.makedirs(fasta_dir)
+            dst2 = fasta_dir
+            lncmd2 = 'ln -s {src}*.fasta {dst}'.format(src=src2,
+                                                      dst=dst2)
+            os.system(lncmd2)
 
     #if enterobacter, link to enterobacter reference sequences
         if argument_dict['analysis'] == 'enterobacter':
@@ -160,6 +169,7 @@ def drep_redmine(redmine_instance, issue, work_dir, description):
             lncmd = 'ln -s {src}*.fasta {dst}'.format(src=src,
                                                       dst=dst)
             os.system(lncmd)
+
             src2 = '/mnt/nas2/processed_sequence_data/ncbi/enterobacterales_references/BestAssemblies/'
             fasta_dir = os.path.join(work_dir, 'fastas')
             if not os.path.isdir(fasta_dir):
@@ -202,7 +212,7 @@ def drep_redmine(redmine_instance, issue, work_dir, description):
         activate = 'source /home/ubuntu/miniconda3/bin/activate /mnt/nas2/virtual_environments/dRep'
         # Run dRep compare with the necessary arguments
         if argument_dict['command'] == 'compare':
-            dRep_cmd = 'dRep {command} {outpath} -p 10 -g {seqpath}/*.fasta -pa {P_ANI} -sa {S_ANI} -nc {cov_thresh} ' \
+            dRep_cmd = 'dRep {command} {outpath} -p 24 -g {seqpath}/*.fasta -pa {P_ANI} -sa {S_ANI} -nc {cov_thresh} ' \
                        '--clusterAlg {clusteralgorithm} --S_algorithm {comparisonalgorithm}'.format(command=argument_dict['command'],
                                                                                                     seqpath=fasta_dir,
                                                                                                     P_ANI=argument_dict['P_ANI'],
@@ -221,7 +231,7 @@ def drep_redmine(redmine_instance, issue, work_dir, description):
 
         # Run dRep dreplicate with the necessary arguments
         if argument_dict['command'] == 'dereplicate':
-            dRep_cmd = 'dRep {command} {outpath} -p 10 -g {seqpath}/*.fasta -pa {P_ANI} -sa {S_ANI} -nc {cov_thresh} ' \
+            dRep_cmd = 'dRep {command} {outpath} -p 24 -g {seqpath}/*.fasta -pa {P_ANI} -sa {S_ANI} -nc {cov_thresh} ' \
                        '--clusterAlg {clusteralgorithm} --S_algorithm {comparisonalgorithm}'.format(command=argument_dict['command'],
                                                                                                     seqpath=fasta_dir,
                                                                                                     P_ANI=argument_dict['P_ANI'],
@@ -248,17 +258,25 @@ def drep_redmine(redmine_instance, issue, work_dir, description):
                             format='zip',
                             base_name=os.path.join(work_dir, str(issue.id)))
 
-        upload_successful = upload_to_ftp(local_file=os.path.join(work_dir, str(issue.id) + '.zip'))
+        sas_url = upload_to_ftp(
+            local_file=os.path.join(work_dir, str(issue.id) + '.zip')
+        )
 
-        if upload_successful:
-            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                          notes='dRep complete!\n\n'
-                                                'Results are available at the following FTP address:\n'
-                                                'ftp://ftp.agr.gc.ca/outgoing/cfia-ac/{}'.format(str(issue.id) + '.zip'))
+        if sas_url:
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=4,
+                notes='dRep complete!\n\n'
+                'Results are available at the following URL:\n'
+                '{url}'.format(url=sas_url)
+            )
         else:
-            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                          notes='Upload of result files was unsuccessful due to FTP connectivity issues. '
-                                                'Please try again later.')
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=4,
+                notes='Upload of result files was unsuccessful due to '
+                'connectivity issues. Please try again later.'
+            )
 
         # Create a list of all the folders - will be used to clean up the working directory
         folders = glob.glob(os.path.join(work_dir, '*/'))

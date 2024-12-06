@@ -182,7 +182,7 @@ def pyseer_redmine(redmine_instance, issue, work_dir, description):
 
         # Create folder to drop FASTA files
         assemblies_folder = os.path.join(work_dir, 'assemblies')
-        os.mkdir(assemblies_folder)
+        os.makedirs(assemblies_folder, exist_ok=True)
 
         # Create output folder for prokka
         output_folder = os.path.join(work_dir, 'output')
@@ -580,8 +580,9 @@ def pyseer_redmine(redmine_instance, issue, work_dir, description):
             if argument_dict['distance'] == 'bcgtree':
                 gff_file = '{seqid}.gff'.format(seqid=seqid)
                 output_gff = os.path.join(assemblies_folder, gff_file)
+            #I think I need to add something to make sure the gff file moves to the assembly folder
                 shutil.copyfile(os.path.join(output_folder, seqid, gff_file),
-                                assemblies_folder)
+                                output_gff) #changed to output_gff from assemblies_folder
             else:
                 # run prokka if bcgtree was not used, as this means prokka was not run yet
                 #These unfortunate hard coded paths appear to be necessary
@@ -688,19 +689,23 @@ def pyseer_redmine(redmine_instance, issue, work_dir, description):
                                   output_filename=output_filename)
         zip_filepath += '.zip'
 
-        upload_successful = upload_to_ftp(local_file=zip_filepath)
+        sas_url = upload_to_ftp(local_file=zip_filepath)
         # Prepare upload
-        if upload_successful:
-            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                          notes='Prokka process complete!\n\n'
-                                                'Results are available at the following FTP address:\n'
-                                                'ftp://ftp.agr.gc.ca/outgoing/cfia-ac/{}'
-                                          .format(os.path.split(zip_filepath)[1]))
+        if sas_url:
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=4,
+                notes='Prokka process complete!\n\n'
+                'Results are available at the following URL:\n'
+                '{url}'.format(url=sas_url)
+            )
         else:
-            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                          notes='Upload of result files was unsuccessful due to FTP connectivity '
-                                                'issues. '
-                                                'Please try again later.')
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=4,
+                notes='Upload of result files was unsuccessful due to '
+                      'connectivity issues. Please try again later.'
+            )
         # Remove the zip file
 #        os.remove(zip_filepath)
         #remove the output folder
@@ -715,18 +720,24 @@ def pyseer_redmine(redmine_instance, issue, work_dir, description):
             zip_filepath += '.zip'
             # Prepare upload
             # This file can get too big to upload to Redmine, so we should put it on the FTP.
-            upload_successful = upload_to_ftp(local_file=zip_filepath)
+            sas_url = upload_to_ftp(local_file=zip_filepath)
             # Prepare upload
-            if upload_successful:
+            if sas_url:
             # Wrap up issue
-                redmine_instance.issue.update(resource_id=issue.id,
-                                          status_id=4,
-                                          notes='Analysis with bcgTree complete!\n\nResults are available at the following FTP address:\nftp://ftp.agr.gc.ca/outgoing/cfia-ac/{l}'.format(l=os.path.split(zip_filepath)[1]))
+                redmine_instance.issue.update(
+                    resource_id=issue.id,
+                    status_id=4,
+                    notes='Analysis with bcgTree complete!\n\n'
+                    'Results are available at the following URL:\n'
+                    '{url}'.format(url=sas_url)
+                )
             else:
-                redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                              notes='Upload of result files was unsuccessful due to FTP connectivity '
-                                                    'issues. '
-                                                    'Please try again later.')
+                redmine_instance.issue.update(
+                    resource_id=issue.id,
+                    status_id=4,
+                    notes='Upload of result files was unsuccessful due to '
+                          'connectivity issues. Please try again later.'
+                )
 
         #move output files to pyseer folder
         #this probably should have been done during the pyseer process, but I don't want to go back and edit it for fear of ruining this working script
@@ -766,19 +777,23 @@ def pyseer_redmine(redmine_instance, issue, work_dir, description):
                                   output_filename=pyseer_filename)
         zip_filepath += '.zip'
 
-        upload_successful = upload_to_ftp(local_file=zip_filepath)
+        sas_url = upload_to_ftp(local_file=zip_filepath)
         # Prepare upload
-        if upload_successful:
-            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                          notes='Pyseer process complete!\n\n'
-                                                'Results are available at the following FTP address:\n'
-                                                'ftp://ftp.agr.gc.ca/outgoing/cfia-ac/{}'
-                                          .format(os.path.split(zip_filepath)[1]))
+        if sas_url:
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=4,
+                notes='Pyseer process complete!\n\n'
+                      'Results are available at the following URL:\n'
+                      '{url}'.format(url=sas_url)
+                )
         else:
-            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                          notes='Upload of result files was unsuccessful due to FTP connectivity '
-                                                'issues. '
-                                                'Please try again later.')
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=4,
+                notes='Upload of result files was unsuccessful due to '
+                      'connectivity issues. Please try again later.'
+                )
         # Remove the zip file
 #        os.remove(zip_filepath)
         #remove the pyseer folder

@@ -284,10 +284,7 @@ def pointfinder_redmine(redmine_instance, issue, work_dir, description):
     pointfinder_db = '/mnt/nas2/databases/assemblydatabases/0.3.4/pointfinder'
     # List of organisms in the pointfinder database
     pointfinder_list = ['campylobacter', 'e.coli', 'tuberculosis', 'gonorrhoeae', 'salmonella']
-    try:
-        os.mkdir(pointfinder_output_dir)
-    except FileExistsError:
-        pass
+    os.makedirs(pointfinder_output_dir, exist_ok=True)
     # Pointfinder cannot handle an entire folder of sequences; each sample must be processed independently
     for seqid in sorted(seqids):
         # If the seqid isn't present in the dictionary, it is because the assembly could not be found - or because

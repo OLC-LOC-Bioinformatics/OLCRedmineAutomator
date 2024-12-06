@@ -3,7 +3,7 @@ import re
 import glob
 import collections
 import pandas as pd
-from automator_settings import ASSEMBLIES_FOLDER, MERGED_ASSEMBLIES_FOLDER
+from automator_settings import ASSEMBLIES_FOLDER, MERGED_ASSEMBLIES_FOLDER, NEXTSEQ_ASSEMBLIES_FOLDER
 
 
 def create_report_dictionary(report_list, seq_list, id_column='SeqID') -> dict:
@@ -56,6 +56,7 @@ def get_combined_metadata(seq_list):
     # Grab every single combinedMetadata.csv file we have
     all_reports = glob.glob(os.path.join(ASSEMBLIES_FOLDER, '*/reports/combinedMetadata.csv'))
     all_reports += glob.glob(os.path.join(MERGED_ASSEMBLIES_FOLDER, '*/reports/combinedMetadata.csv'))
+    all_reports += glob.glob(os.path.join(NEXTSEQ_ASSEMBLIES_FOLDER, '*/reports/combinedMetadata.csv')) #2024-06-12 AC
     metadata_report_dict = create_report_dictionary(report_list=all_reports, seq_list=seq_list)
     return metadata_report_dict
 
@@ -70,6 +71,8 @@ def get_gdcs(seq_list):
     gdcs_reports += glob.glob(os.path.join(ASSEMBLIES_FOLDER, '*/reports/gdcs.csv')) 
     gdcs_reports += glob.glob(os.path.join(MERGED_ASSEMBLIES_FOLDER, '*/reports/GDCS.csv'))
     gdcs_reports += glob.glob(os.path.join(MERGED_ASSEMBLIES_FOLDER, '*/reports/gdcs.csv'))
+    gdcs_reports += glob.glob(os.path.join(NEXTSEQ_ASSEMBLIES_FOLDER, '*/reports/GDCS.csv')) #2024-06-12 AC
+    gdcs_reports += glob.glob(os.path.join(NEXTSEQ_ASSEMBLIES_FOLDER, '*/reports/gdcs.csv')) #2024-06-12 AC
     gdcs_report_dict = create_report_dictionary(report_list=gdcs_reports, seq_list=seq_list, id_column='Strain')
     return gdcs_report_dict
 
@@ -86,6 +89,9 @@ def get_virulence(seq_list):
     )
     virulence_reports += glob.glob(
         os.path.join(MERGED_ASSEMBLIES_FOLDER, '*/reports/virulence.csv')
+    )
+    virulence_reports += glob.glob(
+        os.path.join(NEXTSEQ_ASSEMBLIES_FOLDER, '*/reports/virulence.csv')
     )
     virulence_report_dict = create_report_dictionary(
         report_list=virulence_reports,

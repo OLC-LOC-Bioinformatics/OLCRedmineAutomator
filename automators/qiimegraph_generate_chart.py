@@ -425,11 +425,9 @@ def extract_viz_csv(input_path, out_dir):
     # Outfile path
     out_file = os.path.join(out_dir, 'qiime2_data_extract.csv')
 
-    try:
-        os.mkdir(temp_dir)
-    except:
-        shutil.rmtree(temp_dir)
-        os.mkdir(temp_dir)
+    shutil.rmtree(temp_dir)
+
+    os.makedirs(temp_dir, exist_ok=True)
 
     # Grab CSV
     qzv.export_data(temp_dir)

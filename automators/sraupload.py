@@ -26,7 +26,8 @@ def externalretrieve_redmine(redmine_instance, issue, work_dir, description):
         ftp_folder = description.pop(0).rstrip()
         fastq_list = list()
         for item in description:
-            item = item.upper()
+            #item = item.upper()
+            item = item.rstrip()
             fastq_list.append(item)
 
         # Use NAStools to put FASTQ files into our working dir.

@@ -49,7 +49,9 @@ def closerelatives_redmine(redmine_instance, issue, work_dir, description):
 
         # Run mash dist with the FASTQ file specified against the sketch of all our stuff.
         query_fasta = glob.glob(os.path.join(work_dir, 'fasta', '*.fasta'))[0]
-        mash.dist(query_fasta, '/mnt/nas2/redmine/bio_requests/14674/all_sequences.msh',
+        #mash.dist(query_fasta, '/mnt/nas2/databases/mash_all_updated2023_database/part_10_886.msh', ## Mathu changed the sketch files here with the updated one#####
+        #mash.dist(query_fasta, '/mnt/nas2/redmine/bio_requests/14674/all_sequences.msh', #changed on 2024-08-20 AC
+        mash.dist(query_fasta, '/mnt/nas2/databases/mash_nas_assemblies/olc_assemblies_mashsketch.msh',
                   threads=8, output_file=os.path.join(work_dir, 'distances.tab'))
         mash_results = mash.read_mash_output(os.path.join(work_dir, 'distances.tab'))
         result_dict = dict()
@@ -66,12 +68,14 @@ def closerelatives_redmine(redmine_instance, issue, work_dir, description):
         upload_string = ''
         for i in range(num_close_relatives):
             upload_string = upload_string + sorted_distance_results[i].replace('.fasta', '') + ' (' + str(result_dict[sorted_distance_results[i]]) + ')\n'
+            upload_string = upload_string + sorted_distance_results[i].replace('.fna.gz', '') + ' (' + str(result_dict[sorted_distance_results[i]]) + ')\n' #added by Ashley
 
         # Also make a CSV file of all results, in case someone wants to take a closer look.
         with open(os.path.join(work_dir, 'close_relatives_results.csv'), 'w') as f:
             f.write('Strain,MashDistance\n')
             for seq in sorted_distance_results:
                 f.write('{},{}\n'.format(seq.replace('.fasta', ''), result_dict[seq]))
+                f.write('{},{}\n'.format(seq.replace('.fna.gz', ''), result_dict[seq]))
 
         output_list = [
             {

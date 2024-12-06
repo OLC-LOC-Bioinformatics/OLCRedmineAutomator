@@ -63,10 +63,7 @@ def plasmid_borne_identity(redmine_instance, issue, work_dir, description):
 
         # Set and create the directory to store the custom targets
         target_dir = os.path.join(work_dir, 'targets')
-        try:
-            os.mkdir(target_dir)
-        except FileExistsError:
-            pass
+        os.makedirs(target_dir, exist_ok=True)
         # Download the attached FASTA file.
         # First, get the attachment id - this seems like a kind of hacky way to do this, but I have yet to figure
         # out a better way to do it.
@@ -95,11 +92,12 @@ def plasmid_borne_identity(redmine_instance, issue, work_dir, description):
                                           status_id=4)
             return
         # These unfortunate hard coded paths appear to be necessary
-        activate = 'source /home/ubuntu/miniconda3/bin/activate /mnt/nas2/virtual_environments/cowbat'
-        seekr_py = '/mnt/nas2/virtual_environments/geneseekr/bin/GeneSeekr'
+        activate = 'source /home/ubuntu/miniconda3/bin/activate /mnt/nas2/virtual_environments/dev/cowbat'
+        #seekr_py = '/mnt/nas2/virtual_environments/geneseekr/bin/GeneSeekr'
         # Run sipprverse with the necessary arguments
-        seekr_cmd = 'python {seekr_py} {blast} -s {seqpath} -r {outpath} -t {dbpath} -c {cutoff} -e {evalue} -u' \
-            .format(seekr_py=seekr_py,
+        #seekr_cmd = 'python {seekr_py} {blast} -s {seqpath} -r {outpath} -t {dbpath} -c {cutoff} -e {evalue} -u' \
+        seekr_cmd = 'GeneSeekr {blast} -s {seqpath} -r {outpath} -t {dbpath} -c {cutoff} -e {evalue} -u' \
+            .format(#seekr_py=seekr_py,
                     blast=argument_dict['blast'],
                     seqpath=work_dir,
                     outpath=os.path.join(work_dir, 'reports'),
@@ -122,7 +120,8 @@ def plasmid_borne_identity(redmine_instance, issue, work_dir, description):
         # Use the COWBAT_DATABASES variable as the database path
         db_path = COWBAT_DATABASES
         # These unfortunate hard coded paths appear to be necessary
-        activate = 'source /home/ubuntu/miniconda3/bin/activate /mnt/nas2/virtual_environments/cowbat'
+        #activate = 'source /home/ubuntu/miniconda3/bin/activate /mnt/nas2/virtual_environments/cowbat'
+        activate = 'source /home/ubuntu/miniconda3/bin/activate /mnt/nas2/virtual_environments/dev/cowbat'
         # Run sipprverse with the necessary arguments
         mob_cmd = 'python -m genemethods.assemblypipeline.mobrecon -s {seqfolder} -r {targetfolder} -a geneseekr -b {blast}' \
             .format(seqfolder=work_dir,
@@ -187,7 +186,7 @@ def plasmid_borne_identity(redmine_instance, issue, work_dir, description):
         sentry_sdk.capture_exception(e)
         redmine_instance.issue.update(resource_id=issue.id,
                                       notes='Something went wrong! We log this automatically and will look into the '
-                                            'problem and get back to you with a fix soon.')
+                                            'problem and get back to you with a fix soon: {e}'.format(e=e))
 
 
 def verify_fasta_files_present(seqid_list, fasta_dir):

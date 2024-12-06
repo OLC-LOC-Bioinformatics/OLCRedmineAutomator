@@ -20,11 +20,11 @@ def sequence_extractor_redmine(redmine_instance, issue, work_dir, description):
     description = pickle.load(open(description, 'rb'))
     # Set and create the directory to store the custom targets
     details_dir = os.path.join(work_dir, 'fasta_details')
-    os.mkdir(details_dir)
+    os.makedirs(details_dir, exist_ok=True)
     details_file = os.path.join(details_dir, 'fasta_details.txt')
 
     sequence_dir = os.path.join(work_dir, 'sequences')
-    os.mkdir(sequence_dir)
+    os.makedirs(sequence_dir, exist_ok=True)
     try:
         # Download the attached file.
         # First, get the attachment id - this seems like a kind of hacky way to do this, but I have yet to figure
@@ -42,18 +42,37 @@ def sequence_extractor_redmine(redmine_instance, issue, work_dir, description):
             with open(details_file, 'r') as details:
                 for line in details:
                     seqid, contig, start, stop = line.split(';')
-                    seqids.append(seqid)
+                    seqid = seqid.upper() #added
+                    if seqid not in seqids:
+                        seqids.append(seqid)
                 redmine_instance.issue.update(resource_id=issue.id,
                                               notes='Extracted the following SEQIDs from the supplied list:\n'
                                                     '{seqids}'.format(seqids='\n'.join(seqids)))
         else:
-            for item in description:
-                seqid, contig, start, stop = item.split(';')
-                seqid = seqid.upper()
-                with open(details_file, 'w') as details:
+            with open(details_file, 'w') as details:
+                for item in description:
+                    seqid, contig, start, stop = item.split(';')
+                    seqid = seqid.upper()
+                    details.write('{seqid};{contig};{start};{stop}\n'.format(seqid=seqid,
+                                                                             contig=contig,
+                                                                             start=start,
+                                                                             stop=stop))
+                    if seqid not in seqids:
+                        seqids.append(seqid)
+            #with open(details_file, 'w+') as details:            
+            #    for item in description:
+            #        item = item.rstrip() #added by ashley
+            #        seqid, contig, start, stop = item.split(';')
+            #        seqid = seqid.upper()
                     #details.write(f'{seqid};{contig};{start}{stop}')
-                    details.write('{seqid};{contig};{start}{stop}')
-                seqids.append(seqid)
+                    #details.write('{seqid};{contig};{start}{stop}')
+            #        with open(details_file, 'a+') as details: #added by ashley
+            #            details.write("\n{item}".format(item=item)) #added by ashley
+            #    seqids.append(seqid)
+            #    with open(details_file, 'r') as fin:
+            #        data = fin.read().splitlines(True)
+            #    with open(details_file, 'w') as fout:
+            #        fout.writelines(data[1:])
             redmine_instance.issue.update(resource_id=issue.id,
                                           notes='Created sequence extraction details file from provided details')
 
@@ -112,11 +131,11 @@ def sequence_extractor_redmine(redmine_instance, issue, work_dir, description):
         ]
 
         # Create a list of all the folders - will be used to clean up the working directory
-        folders = glob.glob(os.path.join(work_dir, '*/'))
+        #folders = glob.glob(os.path.join(work_dir, '*/'))
         # Remove all the folders
-        for folder in folders:
-            if os.path.isdir(folder):
-                shutil.rmtree(folder)
+        #for folder in folders:
+        #    if os.path.isdir(folder):
+        #        shutil.rmtree(folder)
         # Wrap up issue
         redmine_instance.issue.update(resource_id=issue.id,
                                       uploads=output_list,

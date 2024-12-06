@@ -11,10 +11,21 @@ from iridasequencefile import SequenceInfo
 
 from wgsassembly import quit_ftp
 from automator_settings import FTP_USERNAME, FTP_PASSWORD
+SFTP_HOST = 'ftp.agr.gc.ca'
+SFTP_PORT = 22
 
 from automator_settings import SENTRY_DSN
 import sentry_sdk
 from amrsummary import before_send
+
+# Dropbox
+from upload_to_dropbox import upload_to_dropbox
+from tokens import (
+    DROPBOX_ACCESS_TOKEN,
+    DROPBOX_APP_KEY, 
+    DROPBOX_APP_SECRET,
+    DROPBOX_REFRESH_TOKEN
+)
 
 permitted_users = [106, 429, 225, 529, 745] # Adam Julie Cathy Ray Brenna
 
@@ -58,6 +69,35 @@ def externalretrieve_redmine(redmine_instance, issue, work_dir, description):
         # Allow for up to 10 attempts at uploading. If upload has completed and we stall at the end, allow.
         upload_successful = upload_to_ftp(local_file=os.path.join(work_dir, str(issue.id) + '.zip'))
 
+                # Set the path of the zip file
+        zip_filepath = os.path.join(work_dir, str(issue.id) + '.zip')
+        
+        # Upload the zip file to Dropbox
+        download_link = upload_to_dropbox(
+            access_token=DROPBOX_ACCESS_TOKEN,
+            refresh_token=DROPBOX_REFRESH_TOKEN,
+            app_key=DROPBOX_APP_KEY,
+            app_secret=DROPBOX_APP_SECRET,
+            local_file_path=zip_filepath
+        )
+
+        if download_link:
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=2,
+                notes='External IRIDA Retrieve process complete!\n\n'
+                      'Results are available at the following URL:\n'
+                      '{url}'.format(url=download_link)
+            )
+        else:
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=2,
+                notes='Upload of files was unsuccessful due to '
+                'connectivity issues. Please try again later.'
+            )
+
+
         # And finally, do some file cleanup.
         try:
             shutil.rmtree(os.path.join(work_dir, str(issue.id)))
@@ -65,22 +105,76 @@ def externalretrieve_redmine(redmine_instance, issue, work_dir, description):
         except:
             pass
 
-        if upload_successful is False:
-            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                          notes='There are connection issues with the FTP site. Unable to complete '
-                                                'external retrieve process. Please try again later.')
-        else:
-            redmine_instance.issue.update(resource_id=issue.id, assigned_to_id=745, # Assign to Brenna
-                                          notes='External IRIDA Retrieve process complete!\nNow Brenna just needs to upload the folder to IRIDA\n\n'
-                                                'Results are available at the following FTP address:\n'
-                                                'ftp://ftp.agr.gc.ca/outgoing/cfia-ac/{}'.format(str(issue.id) + '.zip'))
     
     except Exception as e:
         sentry_sdk.capture_exception(e)
         redmine_instance.issue.update(resource_id=issue.id,
                                       notes='Something went wrong! We log this automatically and will look into the'
-                                            'problem and get back to you with a fix soon.')
+                                            'problem and get back to you with a fix soon. Here is the traceback: {e}'.format(e=e))
 
+
+def upload_to_sftp(local_file):
+    """
+    Uploads a file to the SFTP server with multiple attempts.
+    
+    :param local_file: File that you want to upload to the SFTP. Will be
+    uploaded with the same name that the local file has.
+    :return: True if upload ended up being successful, False if even after 10
+    tries the upload didn't work.
+    """
+    num_upload_attempts = 0
+    upload_successful = False
+    while num_upload_attempts < 10:
+        try:
+            # Establish an SFTP connection
+            transport = paramiko.Transport((SFTP_HOST, SFTP_PORT))
+            transport.connect(username=FTP_USERNAME, password=FTP_PASSWORD)
+            sftp = paramiko.SFTPClient.from_transport(transport)
+            
+            # Change to the target directory
+            try:
+                sftp.chdir('outgoing/cfia-ak')
+            except IOError as exc:
+                print("Failed to change directory: {exc}".format(exc=exc))
+                raise
+            
+            # Upload the file
+            try:
+                sftp.put(local_file, os.path.split(local_file)[1])
+            except IOError as exc:
+                print("Failed to upload file: {exc}".format(exc=exc))
+                raise
+            
+            # Verify the file size
+            try:
+                remote_file_size = sftp.stat(
+                    os.path.split(local_file)[1]
+                ).st_size
+                local_file_size = os.path.getsize(local_file)
+            except IOError as exc:
+                print("Failed to stat file: {exc}".format(exc=exc))
+                raise
+            
+            if remote_file_size == local_file_size:
+                upload_successful = True
+                sftp.close()
+                transport.close()
+                break
+        except (socket.timeout, paramiko.SSHException, IOError) as exc:
+            print(
+                "Upload attempt {num_upload_attempts} failed: {exc}".format(
+                    num_upload_attempts=num_upload_attempts + 1,
+                    exc=exc
+                )
+            )
+            num_upload_attempts += 1
+        finally:
+            try:
+                sftp.close()
+                transport.close()
+            except:
+                pass
+    return upload_successful
 
 def upload_to_ftp(local_file):
     """

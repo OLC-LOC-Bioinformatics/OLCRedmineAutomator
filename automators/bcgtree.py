@@ -76,7 +76,7 @@ def bcgtree_redmine(redmine_instance, issue, work_dir, description):
 
         # Create folder to drop FASTA files
         assemblies_folder = os.path.join(work_dir, 'assemblies')
-        os.mkdir(assemblies_folder)
+        os.makedirs(assemblies_folder, exist_ok=True)
 
         # Create output folder
         output_folder = os.path.join(work_dir, 'output')
@@ -239,14 +239,16 @@ def bcgtree_redmine(redmine_instance, issue, work_dir, description):
                                   output_filename=output_filename)
         zip_filepath += '.zip'
 
-        upload_successful = upload_to_ftp(local_file=zip_filepath)
+        sas_url = upload_to_ftp(local_file=zip_filepath)
         # Prepare upload
-        if upload_successful:
-            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                          notes='Prokka process complete!\n\n'
-                                                'Results are available at the following FTP address:\n'
-                                                'ftp://ftp.agr.gc.ca/outgoing/cfia-ac/{}'
-                                          .format(os.path.split(zip_filepath)[1]))
+        if sas_url:
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=4,
+                notes='Prokka process complete!\n\n'
+                      'Results are available at the following URL:\n'
+                      '{url}'.format(url=sas_url)
+                )
         else:
             redmine_instance.issue.update(resource_id=issue.id, status_id=4,
                                           notes='Upload of result files was unsuccessful due to FTP connectivity '
@@ -272,13 +274,16 @@ def bcgtree_redmine(redmine_instance, issue, work_dir, description):
 #                'path': zip_filepath
 #            }
 #        ]
-        upload_successful = upload_to_ftp(local_file=zip_filepath)
+        sas_url = upload_to_ftp(local_file=zip_filepath)
         # Prepare upload
-        if upload_successful:
+        if sas_url:
         # Wrap up issue
-            redmine_instance.issue.update(resource_id=issue.id,
-                                      status_id=4,
-                                      notes='Analysis with bcgTree complete!\n\nResults are available at the following FTP address:\nftp://ftp.agr.gc.ca/outgoing/cfia-ac/{l}'.format(l=os.path.split(zip_filepath)[1]))
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=4,
+                notes='Analysis with bcgTree complete!\n\n'
+                'Results are available at the following URL:\n'
+                '{url}'.format(url=sas_url))
         else:
             redmine_instance.issue.update(resource_id=issue.id, status_id=4,
                                           notes='Upload of result files was unsuccessful due to FTP connectivity '

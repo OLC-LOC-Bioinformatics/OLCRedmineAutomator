@@ -4,10 +4,17 @@ import click
 import pickle
 import shutil
 from nastools.nastools import retrieve_nas_files
-from externalretrieve import upload_to_ftp
+# Dropbox
+from upload_to_dropbox import upload_to_dropbox
+from tokens import (
+    DROPBOX_ACCESS_TOKEN,
+    DROPBOX_APP_KEY, 
+    DROPBOX_APP_SECRET,
+    DROPBOX_REFRESH_TOKEN
+)
 import ftplib
 from ftplib import FTP
-from automator_settings import FTP_USERNAME, FTP_PASSWORD
+from automator_settings import FTP_USERNAME, FTP_PASSWORD, FTP_FOLDER
 import traceback
 import pandas as pd
 
@@ -144,18 +151,30 @@ def scoary_redmine(redmine_instance, issue, work_dir, description):
 #                'path': zip_filepath
 #            }
 #        ]
-        upload_successful = upload_to_ftp(local_file=zip_filepath)
-        # Prepare upload
-        if upload_successful:
-        # Wrap up issue
-            redmine_instance.issue.update(resource_id=issue.id,
-                                      status_id=4,
-                                      notes='Analysis with scoary complete!\n\nResults are available at the following FTP address:\nftp://ftp.agr.gc.ca/outgoing/cfia-ac/{l}'.format(l=os.path.split(zip_filepath)[1]))
+        # Upload the zip file to Dropbox
+        download_link = upload_to_dropbox(
+            access_token=DROPBOX_ACCESS_TOKEN,
+            refresh_token=DROPBOX_REFRESH_TOKEN,
+            app_key=DROPBOX_APP_KEY,
+            app_secret=DROPBOX_APP_SECRET,
+            local_file_path=zip_filepath
+        )
+
+        if download_link:
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=4,
+                notes='scoary analysis complete!\n\n'
+                      'Results are available at the following URL:\n'
+                      '{url}'.format(url=download_link)
+            )
         else:
-            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                          notes='Upload of result files was unsuccessful due to FTP connectivity '
-                                                'issues. '
-                                                'Please try again later.')
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=4,
+                notes='Upload of results was unsuccessful due to '
+                'connectivity issues. Please try again later.'
+            )
         # Clean up files
 #        shutil.rmtree(output_folder)
         os.remove(zip_filepath)

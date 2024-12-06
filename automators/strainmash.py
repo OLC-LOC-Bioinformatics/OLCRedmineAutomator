@@ -21,7 +21,7 @@ def strainmash_redmine(redmine_instance, issue, work_dir, description):
     description = pickle.load(open(description, 'rb'))
 
     # Reference path
-    typestrain_db_path = '/mnt/nas/Databases/GenBank/typestrains/typestrains_sketch.msh'
+    typestrain_db_path = '/mnt/nas2/databases/mashdatabases/RefSeqSketches.msh'
 
     # Parse description to get list of SeqIDs
     seqids = []
@@ -42,7 +42,7 @@ def strainmash_redmine(redmine_instance, issue, work_dir, description):
 
     # Create output directory
     output_dir = os.path.join(work_dir, 'output')
-    os.mkdir(output_dir)
+    os.makedirs(output_dir, exist_ok=True)
 
     # Get all of the FASTA files
     fasta_list = glob.glob(os.path.join(work_dir, '*.fasta'))

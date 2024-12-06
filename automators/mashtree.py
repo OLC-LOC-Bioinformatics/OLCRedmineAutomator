@@ -96,6 +96,16 @@ def mashtree_redmine(redmine_instance, issue, work_dir, description):
                                                       dst=dst)
             os.system(lncmd)
 
+            #also do this for the atcc sequences
+            src2 = '/mnt/nas2/processed_sequence_data/atcc/listeria/BestAssemblies/'
+            fasta_dir = os.path.join(work_dir, 'fastas')
+            if not os.path.isdir(fasta_dir):
+                os.makedirs(fasta_dir)
+            dst2 = fasta_dir
+            lncmd2 = 'ln -s {src}*.fasta {dst}'.format(src=src2,
+                                                      dst=dst2)
+            os.system(lncmd2)
+
     #if enterobacter, link to enterobacter reference sequences
         if argument_dict['analysis'] == 'enterobacter':
             src = '/mnt/nas2/processed_sequence_data/ncbi/enterobacter_references/BestAssemblies/'

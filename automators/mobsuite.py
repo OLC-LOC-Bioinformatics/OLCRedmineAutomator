@@ -54,8 +54,9 @@ def mob_suite(redmine_instance, issue, work_dir, description):
             # Run mobsuite via docker, since I can't seem to make it work with slurm any other way.
             # changed the virtual environment from /mob_suite to /dev/cowbat on April 30, 2021 as this contains mobsuite version 3.0.0
             cmd = 'docker run --rm -i -u $(id -u) -v /mnt/nas2:/mnt/nas2 mob_suite:latest /bin/bash -c "source activate ' \
-                  '/mnt/nas2/virtual_environments/dev/cowbat && mob_recon -i {input_fasta} -o {output_dir} ' \
-                  '--run_typer"'.format(input_fasta=fasta,
+                  #'/mnt/nas2/virtual_environments/dev/cowbat && mob_recon -i {input_fasta} -o {output_dir} ' \
+                  '/mnt/nas2/virtual_environments/mobsuite3 && mob_recon -i {input_fasta} -s {seqid} -p {seqid} -o {output_dir} ' \
+                  '--run_typer"'.format(input_fasta=fasta,seqid=seqid,
                                         output_dir=os.path.join(output_dir, seqid))
             os.system(cmd)
 
@@ -64,7 +65,9 @@ def mob_suite(redmine_instance, issue, work_dir, description):
                             format='zip',
                             base_name=os.path.join(work_dir, str(issue.id)))
 
-        upload_successful = upload_to_ftp(local_file=os.path.join(work_dir, str(issue.id) + '.zip'))
+        sas_url = upload_to_ftp(
+            local_file=os.path.join(work_dir, str(issue.id) + '.zip')
+        )
 
         # And finally, do some file cleanup.
         try:
@@ -74,15 +77,21 @@ def mob_suite(redmine_instance, issue, work_dir, description):
         except:
             pass
 
-        if upload_successful:
-            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                          notes='Mob-suite process complete!\n\n'
-                                                'Results are available at the following FTP address:\n'
-                                                'ftp://ftp.agr.gc.ca/outgoing/cfia-ac/{}'.format(str(issue.id) + '.zip'))
+        if sas_url:
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=4,
+                notes='Mob-suite process complete!\n\n'
+                      'Results are available at the following URL:\n'
+                      '{url}'.format(url=sas_url)
+                )
         else:
-            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                          notes='Upload of result files was unsuccessful due to FTP connectivity issues. '
-                                                'Please try again later.')
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=4,
+                notes='Upload of result files was unsuccessful due to '
+                'connectivity issues. Please try again later.'
+            )
 
     except Exception as e:
         sentry_sdk.capture_exception(e)

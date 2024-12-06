@@ -96,7 +96,8 @@ def diversitree_redmine(redmine_instance, issue, work_dir, description):
 
         # Full paths needed here since SLURM doesn't give the $PATH of the host machine to the script for some reason
         if treemaker == 'parsnp':
-            cmd = '/mnt/nas2/virtual_environments/mob_suite/bin/parsnp -r ! -d {input} -o {output} -p {threads}'\
+            #cmd = '/mnt/nas2/virtual_environments/mob_suite/bin/parsnp -r ! -d {input} -o {output} -p {threads}'\
+            cmd = '/mnt/nas2/virtual_environments/mobsuite3/bin/parsnp -r ! -d {input} -o {output} -p {threads}'\
                 .format(input=os.path.join(work_dir, 'fastas'),
                         output=os.path.join(work_dir, 'output'),
                         threads=24)

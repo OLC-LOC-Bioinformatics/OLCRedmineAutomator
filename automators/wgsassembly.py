@@ -8,7 +8,14 @@ import shutil
 import socket
 import fnmatch
 import xml.etree.ElementTree as et
-from externalretrieve import upload_to_ftp
+# Dropbox
+from upload_to_dropbox import upload_to_dropbox
+from tokens import (
+    DROPBOX_ACCESS_TOKEN,
+    DROPBOX_APP_KEY, 
+    DROPBOX_APP_SECRET,
+    DROPBOX_REFRESH_TOKEN
+)
 import ftplib
 from ftplib import FTP
 from automator_settings import FTP_USERNAME, FTP_PASSWORD, COWBAT_IMAGE, COWBAT_DATABASES
@@ -80,7 +87,7 @@ def wgsassembly_redmine(redmine_instance, issue, work_dir, description):
 
             if download_successful is False:
                 redmine_instance.issue.update(resource_id=issue.id,
-                                              assigned_to_id=429,
+                                              assigned_to_id=222, #changed to Ashley number 222
                                               subject='WGS Assembly: {}'.format(description[0]),
                                               notes='Download of files from FTP was not successful.')
                 return
@@ -146,25 +153,35 @@ def wgsassembly_redmine(redmine_instance, issue, work_dir, description):
         os.system(cmd)
         shutil.make_archive(os.path.join(work_dir, str(issue.id)), 'zip', folder_to_upload)
 
-        # At this point, zip folder has been created (hopefully) called issue_id.zip in biorequest dir. Upload that
-        # to the FTP.
-        upload_successful = upload_to_ftp(local_file=os.path.join(work_dir, str(issue.id) + '.zip'))
+        # Upload the zip file to Dropbox
+        download_link = upload_to_dropbox(
+            access_token=DROPBOX_ACCESS_TOKEN,
+            refresh_token=DROPBOX_REFRESH_TOKEN,
+            app_key=DROPBOX_APP_KEY,
+            app_secret=DROPBOX_APP_SECRET,
+            local_file_path=os.path.join(work_dir, str(issue.id) + '.zip')
+        )
 
-        # Make redmine tell Paul that a run has finished and that we should add things to our DB so things don't get missed
-        # to be made. assinged_to_id to use is 226. Priority is 3 (High).
-        if upload_successful:
-            redmine_instance.issue.update(resource_id=issue.id,
-                                          assigned_to_id=529, priority_id=3,
-                                          subject='WGS Assembly: {}'.format(description[0]), # Add run name to subject
-                                          notes='This run has finished assembly! Please add it to the OLC Database.\n'
-                                                'Reports and assemblies uploaded to FTP at: ftp://ftp.agr.gc.ca/outgoing/'
-                                                'cfia-ac/{}.zip'.format(issue.id))
+        if download_link:
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                assigned_to_id=928,
+                priority_id=3, #changed to Monique number 928
+                subject='WGS Assembly: {}'.format(description[0]), # Add run name to subject
+                notes='This run has finished assembly! Please add it to the OLC Database.\n'
+                      'Reports and assemblies uploaded to:\n'
+                      '{url}'.format(url=download_link)
+            )
         else:
-            redmine_instance.issue.update(resource_id=issue.id,
-                                          assigned_to_id=429,
-                                          subject='WGS Assembly: {}'.format(description[0]),
-                                          notes='Upload of result files was not successful. Upload them manually!')
-        try:
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                assigned_to_id=106, #changed to Adam
+                subject='WGS Assembly: {}'.format(description[0]),
+                notes='Upload of result files was not successful. '
+                'Please upload them manually!'
+            )
+
+            try:
             delete_ftp_dir(description[0])
         except:  # Hakuna matata if things don't get deleted. This is just a nice-to-have
             pass

@@ -15,7 +15,12 @@ from amrsummary import before_send
 from strainchoosr import strainchoosr
 import ftplib
 from ftplib import FTP
-from automator_settings import SENTRY_DSN, FTP_USERNAME, FTP_PASSWORD
+from automator_settings import (
+    SENTRY_DSN,
+    FTP_USERNAME,
+    FTP_PASSWORD,
+    FTP_FOLDER
+)
 import traceback
 from nastools.nastools import retrieve_nas_files
 
@@ -87,10 +92,10 @@ def iqtree_redmine(redmine_instance, issue, work_dir, description):
 
         #create needed folders
         input_folder = os.path.join(work_dir, 'inputs')
-        os.mkdir(alignments_folder)
+        os.makedirs(alignments_folder, exist_ok=True)
 
         output_folder = os.path.join(work_dir, 'output')
-        os.mkdir(output_folder)
+        os.makedirs(output_folder, exist_ok=True)
 
         # Create the local folder that we'll need to bring our ftp files into.
         local_folder = os.path.join(work_dir, 'holding_folder')
@@ -331,8 +336,13 @@ def download_ftp_file(ftp_file, local_dir):
         # Try downloading - if timeout, check if the download managed to complete but hang at the end, which happens
         # sometimes. If it did complete, we're good to go. Otherwise, try again.
         try:
-            s = FTP('ftp.agr.gc.ca', user=FTP_USERNAME, passwd=FTP_PASSWORD, timeout=30)
-            s.cwd('incoming/cfia-ac')
+            s = FTP(
+                'ftp.agr.gc.ca',
+                user=FTP_USERNAME,
+                passwd=FTP_PASSWORD,
+                timeout=30
+            )
+            s.cwd('incoming/{ftp_folder}'.format(ftp_folder=FTP_FOLDER))
             local_path = os.path.join(local_dir, os.path.split(ftp_file)[1])
             f = open(local_path, 'wb')
             s.retrbinary('RETR ' + ftp_file, f.write)
@@ -343,8 +353,13 @@ def download_ftp_file(ftp_file, local_dir):
             break
         except socket.timeout:
             local_path = os.path.join(local_dir, os.path.split(ftp_file)[1])
-            s = FTP('ftp.agr.gc.ca', user=FTP_USERNAME, passwd=FTP_PASSWORD, timeout=30)
-            s.cwd('incoming/cfia-ac')
+            s = FTP(
+                'ftp.agr.gc.ca',
+                user=FTP_USERNAME,
+                passwd=FTP_PASSWORD,
+                timeout=30
+            )
+            s.cwd('incoming/{ftp_folder}'.format(ftp_folder=FTP_FOLDER))
             ftp_file_size = s.size(ftp_file)
             # s.quit()
             quit_ftp(s)
@@ -359,12 +374,19 @@ def download_ftp_file(ftp_file, local_dir):
 def download_dir(ftp_dir, local_dir):
     all_downloads_successful = True
     ftp = FTP('ftp.agr.gc.ca', user=FTP_USERNAME, passwd=FTP_PASSWORD)
-    ftp.cwd(os.path.join('incoming/cfia-ac', ftp_dir))
+    ftp.cwd(
+        os.path.join(
+            'incoming/{ftp_folder}'.format(ftp_folder=FTP_FOLDER),
+            ftp_dir
+        )
+    )
     present_in_folder = ftp.nlst()
     for item in present_in_folder:
         if check_if_file(item, ftp_dir):
             ftp_file = os.path.join(ftp_dir, item)
-            download_successful = download_ftp_file(ftp_file=ftp_file, local_dir=local_dir)
+            download_successful = download_ftp_file(
+                ftp_file=ftp_file, local_dir=local_dir
+            )
             if download_successful is False:
                 all_downloads_successful = False
         else:

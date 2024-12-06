@@ -10,6 +10,12 @@ from automator_settings import SENTRY_DSN
 from automator_settings import COWBAT_DATABASES
 from nastools.nastools import retrieve_nas_files
 
+import requests
+import urllib3
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 
 @click.command()
 @click.option('--redmine_instance', help='Path to pickled Redmine API instance')
@@ -24,7 +30,8 @@ def geneseekr_redmine(redmine_instance, issue, work_dir, description):
     description = pickle.load(open(description, 'rb'))
     # Current list of analysis types that the GeneSeekr can perform
     analyses = [
-        'custom', 'gdcs', 'genesippr', 'mlst', 'resfinder', 'rmlst', 'serosippr', 'sixteens', 'virulence','cgmlst'
+        'custom', 'gdcs', 'genesippr', 'mlst', 'resfinder', 'rmlst', 'serosippr', 'sixteens', 'virulence','cgmlst',
+        'all_ices', 'aice', 'cime', 'ime', 't4ss',
     ]
     # Current BLAST analyses supported
     blasts = ['blastn', 'blastp', 'blastx', 'tblastn', 'tblastx']
@@ -54,6 +61,7 @@ def geneseekr_redmine(redmine_instance, issue, work_dir, description):
     }
     # Set the database path for the analyses
     dbpath = COWBAT_DATABASES
+    icebergpath = '/mnt/nas2/databases/ICEberg/geneseekr/'
     database_path = {
         'custom': os.path.join(work_dir, 'targets'),
         'gdcs': os.path.join(dbpath, 'GDCS', 'GDCS'),
@@ -64,7 +72,12 @@ def geneseekr_redmine(redmine_instance, issue, work_dir, description):
         'serosippr': os.path.join(dbpath, 'serosippr', 'Escherichia'),
         'sixteens': os.path.join(dbpath, 'sixteens_full'),
         'virulence': os.path.join(dbpath, 'virulence'),
-        'cgmlst': os.path.join(dbpath, 'cgMLST')
+        'cgmlst': os.path.join(dbpath, 'cgMLST'),
+        'all_ices': os.path.join(icebergpath, 'all_ICEs'),
+        'aice': os.path.join(icebergpath, 'AICEs'),
+        'cime': os.path.join(icebergpath, 'CIMEs'),
+        'ime': os.path.join(icebergpath, 'IMEs'),
+        't4ss': os.path.join(icebergpath, 'T4SSs'),
     }
     try:
         # Parse description to figure out what SEQIDs we need to run on.
@@ -103,10 +116,7 @@ def geneseekr_redmine(redmine_instance, issue, work_dir, description):
         if argument_dict['analysis'] == 'custom':
             # Set and create the directory to store the custom targets
             target_dir = os.path.join(work_dir, 'targets')
-            try:
-                os.mkdir(target_dir)
-            except FileExistsError:
-                pass
+            os.makedirs(target_dir, exist_ok=True)
             # Download the attached FASTA file.
             # First, get the attachment id - this seems like a kind of hacky way to do this, but I have yet to figure
             # out a better way to do it.
@@ -237,24 +247,36 @@ def geneseekr_redmine(redmine_instance, issue, work_dir, description):
                                       status_id=4,
                                       notes='{at} analysis with GeneSeekr complete!'
                                       .format(at=argument_dict['analysis'].lower()))
-    except Exception as e:
-        sentry_sdk.capture_exception(e)
-        redmine_instance.issue.update(resource_id=issue.id,
-                                      notes='Something went wrong! We log this automatically and will look into the '
-                                            'problem and get back to you with a fix soon.')
+    except Exception as exc:
+        sentry_sdk.capture_exception(exc)
+        redmine_instance.issue.update(
+            resource_id=issue.id,
+            notes='Something went wrong! We log this automatically and will '
+            'look into the problem and get back to you with a fix soon. '
+            'Here is the traceback: {e}'.format(e=exc)
+        )
 
 def verify_fasta_files_present(seqid_list, fasta_dir):
     """
-    Makes sure that FASTQ files specified in seqid_list have been successfully copied/linked to directory specified
-    by fastq_dir.
+    Makes sure that FASTQ files specified in seqid_list have been successfully
+    copied/linked to directory specified by fastq_dir.
     :param seqid_list: List with SEQIDs.
     :param fasta_dir: Directory to which FASTA files should have been linked
     :return: List of SEQIDs that did not have files associated with them.
     """
     missing_fastas = list()
     for seqid in seqid_list:
-        # Check forward.
-        if len(glob.glob(os.path.join(fasta_dir, '{seqid}*fasta*'.format(seqid=seqid)))) == 0:
+        # Check if the file exists
+        if len(
+                glob.glob(
+                    os.path.join(
+                        fasta_dir,
+                        '{seqid}*fasta*'.format(seqid=seqid)
+                    )
+                )
+            ) == 0:
+            
+            # Add the missing SEQID to the list
             missing_fastas.append(seqid)
     return missing_fastas
 

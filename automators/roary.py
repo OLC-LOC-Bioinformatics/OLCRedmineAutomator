@@ -5,7 +5,14 @@ import pickle
 import shutil
 import pandas
 from nastools.nastools import retrieve_nas_files
-from externalretrieve import upload_to_ftp
+# Dropbox
+from upload_to_dropbox import upload_to_dropbox
+from tokens import (
+    DROPBOX_ACCESS_TOKEN,
+    DROPBOX_APP_KEY, 
+    DROPBOX_APP_SECRET,
+    DROPBOX_REFRESH_TOKEN
+)
 
 
 @click.command()
@@ -119,7 +126,7 @@ def roary_redmine(redmine_instance, issue, work_dir, description):
             return
         # Create folder to drop FASTA files
         assemblies_folder = os.path.join(work_dir, 'assemblies')
-        os.mkdir(assemblies_folder)
+        os.makedirs(assemblies_folder, exist_ok=True)
 
         # Create output folder
         output_folder = os.path.join(work_dir, 'output')
@@ -144,7 +151,7 @@ def roary_redmine(redmine_instance, issue, work_dir, description):
         for assembly in glob.glob(os.path.join(assemblies_folder, '*.fasta')):
             seqid = os.path.split(assembly)[1].split('.')[0]
             # Prepare command
-            cmd = '{prokka} --outdir {output_folder} --prefix {seqid} {assembly}'\
+            cmd = '{prokka} --outdir {output_folder} --prefix {seqid} --compliant {assembly}'\
                 .format(prokka=prokka,
                         output_folder=os.path.join(output_folder, seqid),
                         seqid=seqid,
@@ -265,19 +272,31 @@ def roary_redmine(redmine_instance, issue, work_dir, description):
                                   output_filename=output_filename)
         zip_filepath += '.zip'
 
-        upload_successful = upload_to_ftp(local_file=zip_filepath)
-        # Prepare upload
-        if upload_successful:
-            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                          notes='Prokka process complete!\n\n'
-                                                'Results are available at the following FTP address:\n'
-                                                'ftp://ftp.agr.gc.ca/outgoing/cfia-ac/{}'
-                                          .format(os.path.split(zip_filepath)[1]))
+                # Upload the zip file to Dropbox
+        download_link = upload_to_dropbox(
+            access_token=DROPBOX_ACCESS_TOKEN,
+            refresh_token=DROPBOX_REFRESH_TOKEN,
+            app_key=DROPBOX_APP_KEY,
+            app_secret=DROPBOX_APP_SECRET,
+            local_file_path=zip_filepath
+        )
+
+        if download_link:
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=2,
+                notes='Prokka analysis complete!\n\n'
+                      'Results are available at the following URL:\n'
+                      '{url}'.format(url=download_link)
+            )
         else:
-            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                          notes='Upload of result files was unsuccessful due to FTP connectivity '
-                                                'issues. '
-                                                'Please try again later.')
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=2,
+                notes='Upload of results was unsuccessful due to '
+                'connectivity issues. Please try again later.'
+            )
+        
         # Remove the zip file
         os.remove(zip_filepath)
 
@@ -328,19 +347,31 @@ def roary_redmine(redmine_instance, issue, work_dir, description):
 #                'path': zip_filepath
 #            }
 #        ]
-        upload_successful = upload_to_ftp(local_file=zip_filepath)
-        # Prepare upload
-        if upload_successful:
-        # Wrap up issue
-            redmine_instance.issue.update(resource_id=issue.id,
-                                      status_id=4,
-                                      notes='{at} analysis with roary complete!\n\nResults are available at the following FTP address:\nftp://ftp.agr.gc.ca/outgoing/cfia-ac/{l}'.format(at=argument_dict['analysistype'], l=os.path.split(zip_filepath)[1]))
+                # Upload the zip file to Dropbox
+        download_link = upload_to_dropbox(
+            access_token=DROPBOX_ACCESS_TOKEN,
+            refresh_token=DROPBOX_REFRESH_TOKEN,
+            app_key=DROPBOX_APP_KEY,
+            app_secret=DROPBOX_APP_SECRET,
+            local_file_path=zip_filepath
+        )
+
+        if download_link:
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=4,
+                notes='roary analysis complete!\n\n'
+                      'Results are available at the following URL:\n'
+                      '{url}'.format(url=download_link)
+            )
         else:
-            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                          notes='Upload of result files was unsuccessful due to FTP connectivity '
-                                                'issues. '
-                                                'Please try again later.')
-        # Clean up files
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=4,
+                notes='Upload of results was unsuccessful due to '
+                'connectivity issues. Please try again later.'
+            )
+        
         shutil.rmtree(output_folder)
         shutil.rmtree(roary_folder)
         os.remove(zip_filepath)

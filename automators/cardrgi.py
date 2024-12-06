@@ -6,8 +6,18 @@ import shutil
 import subprocess
 from biotools import mash
 from nastools.nastools import retrieve_nas_files
-from externalretrieve import upload_to_ftp
+# Dropbox
+from upload_to_dropbox import upload_to_dropbox
+from tokens import (
+    DROPBOX_ACCESS_TOKEN,
+    DROPBOX_APP_KEY, 
+    DROPBOX_APP_SECRET,
+    DROPBOX_REFRESH_TOKEN
+)
 import csv
+import pandas
+from pathlib import Path
+#from openpyxl import load_workbook
 
 
 @click.command()
@@ -31,6 +41,7 @@ def cardrgi_redmine(redmine_instance, issue, work_dir, description):
         # Variable to hold supplied arguments
         argument_dict = {
             'analysistype': 'isolate',
+            'fastaattached': False,
             'loosehits': False,
             'partialgenes': False,
         }
@@ -47,6 +58,9 @@ def cardrgi_redmine(redmine_instance, issue, work_dir, description):
             if 'loosehits' in item:
                 argument_dict['loosehits'] = True
                 continue
+            if 'fastaattached' in item:
+                argument_dict['fastaattached'] = True
+                continue
             if 'partialgenes' in item:
                 argument_dict['partialgenes'] = True
                 continue
@@ -54,31 +68,16 @@ def cardrgi_redmine(redmine_instance, issue, work_dir, description):
             seqids.append(item)
 
         
-        # Ensure that SEQIDs were included
-        if len(seqids) == 0:
-            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                          notes='You did not include any SEQIDs.')
-            return
+        # Ensure that SEQIDs were included/... now that we are added the attachment option, need to remove this
+        #if len(seqids) == 0:
+        #    redmine_instance.issue.update(resource_id=issue.id, status_id=4,
+        #                                  notes='You did not include any SEQIDs.')
+        #    return
 
-        # Download the attached files.
-        # First, get the attachment id - this seems like a kind of hacky way to do this, but I have yet to figure
-        # out a better way to do it.
-        attachment = redmine_instance.issue.get(issue.id, include='attachments')
-        attachment_id = 0
-        for item in attachment.attachments:
-            attachment_id = item.id
-        # Download if attachment id is not 0, which indicates that we didn't find anything attached to the issue.
-        if attachment_id != 0:
-            for item in attachment.attachments:
-                attachment_id = item.id
-                attachment = redmine_instance.attachment.get(attachment_id)
-#            attachment.download(savepath=target_dir, filename='traits.tsv')
-#                attachment.download(savepath=work_dir, filename=attachment_id)
-                attachment.download(savepath=work_dir)
 
         # Create folder to drop FASTA files
         sequences_folder = os.path.join(work_dir, 'sequences')
-        os.mkdir(sequences_folder)
+        os.makedirs(sequences_folder, exist_ok=True)
 
         # Create cardrgi output folder
         cardrgi_folder = os.path.join(work_dir, 'card_output')
@@ -94,6 +93,33 @@ def cardrgi_redmine(redmine_instance, issue, work_dir, description):
                                               notes='WARNING: Could not find the following requested SEQIDs on '
                                                     'the OLC NAS: {}'.format(missing_fastas))
 
+            # Download the attached files if included
+            if argument_dict['fastaattached'] == True:
+                # First, get the attachment id - this seems like a kind of hacky way to do this, but I have yet to figure
+                # out a better way to do it.
+                attachment = redmine_instance.issue.get(issue.id, include='attachments')
+                attachment_id = 0
+                for item in attachment.attachments:
+                    attachment_id = item.id
+                # Download if attachment id is not 0, which indicates that we didn't find anything attached to the issue.
+                if attachment_id != 0:
+                    for item in attachment.attachments:
+                        attachment_id = item.id
+                        attachment = redmine_instance.attachment.get(attachment_id)
+                        attachment.download(savepath=sequences_folder)
+                #NCBI sequences are often .fna... lets rename the file(s)
+                for f in glob.glob(os.path.join(sequences_folder, '*.fna')):
+                    #Split the file into the filename and the extension saving as separate variables
+                    filename, ext=os.path.splittext(f)
+                    if "." in filename:
+                        #If a '.' is in the name, rename, appending the suffix (ext) to the new file
+                        new_name = filename.replace(".","_")
+                        os.rename(
+                            os.path.join(sequences_folder, f),
+                            os.path.join(sequences_folder, new_name + ext))
+                    #rename the suffix to .fasta
+                    f.rename(f.with_suffix('.fasta'))
+
         #if metagenome is chosen, pull fastq files
         if argument_dict['analysistype'] == 'metagenome':
             # Extract FASTQ files.
@@ -104,8 +130,8 @@ def cardrgi_redmine(redmine_instance, issue, work_dir, description):
                                               notes='WARNING: Could not find the following requested FASTQ SEQIDs on'
                                                     ' the OLC NAS: {}'.format(missing_fastqs))
 
-        #first need to make a distance matrix using a tree
-        activatecardrgi = 'source /home/ubuntu/miniconda3/bin/activate /mnt/nas2/virtual_environments/card-rgi'
+        #activating the correct environment
+        activatecardrgi = 'source /home/ubuntu/miniconda3/bin/activate /mnt/nas2/virtual_environments/card-rgi-6'
 
 
         #if running for isolates
@@ -113,7 +139,7 @@ def cardrgi_redmine(redmine_instance, issue, work_dir, description):
             for assembly in glob.glob(os.path.join(sequences_folder, '*.fasta')):
                 seqid = os.path.split(assembly)[1].split('.')[0]
                 #prepare command
-                cardrgiload_cmd = 'rgi load -i /mnt/nas2/databases/card-rgi/card.json --card_annotation /mnt/nas2/databases/card-rgi/card_database_v3.2.2.fasta --local'
+                cardrgiload_cmd = 'rgi load -i /mnt/nas2/databases/card-rgi-6/card.json --card_annotation /mnt/nas2/databases/card-rgi-6/card_database_v3.2.5.fasta --local'
                 outputfile = '{seqid}_rgiresults'.format(seqid=seqid)
                 cardrgi_cmd = 'rgi main -i {assembly} -o {outfile} -n 16 --local'.format(assembly=assembly,
                                                                                          outfile=outputfile)
@@ -159,7 +185,7 @@ def cardrgi_redmine(redmine_instance, issue, work_dir, description):
             # Run shell script
             os.system(cardhmp_script)
             
-            #add the filename (which is the seqid) to the first column in all of the res files, then concatenate into a single output csv file
+            #add the filename (which is the seqid) to the first column in all of the card report files, then concatenate into a single output csv file
             outputfile = os.path.join(cardrgi_folder, 'CARDRGI_output.csv')
             with open(outputfile, 'w', newline='') as file_output:
                 csv_output = csv.writer(file_output, delimiter='\t')
@@ -180,6 +206,14 @@ def cardrgi_redmine(redmine_instance, issue, work_dir, description):
                             row.insert(0,seqname) #this adds the seqid to the file before concatenating
                             #row.insert(0,fname)
                             csv_output.writerow(row)
+            #write the csv file into an excel file so our window's users have easier viewing
+            carddf = pandas.read_csv(os.path.join(cardrgi_folder, 'CARDRGI_output.csv'), sep='\t')
+            #write it to output xlsx file
+            cardexcelfile = os.path.join(cardrgi_folder, 'CARD_RGI_results_{}.xlsx'.format(issue.id))
+            carddf.to_excel(cardexcelfile, sheet_name='Isolate_resistance', index=False)
+            #remove the csv file
+            os.remove(os.path.join(cardrgi_folder, 'CARDRGI_output.csv'))
+            
 
         #if running for metagenomes
         if argument_dict['analysistype'] == 'metagenome':
@@ -198,7 +232,7 @@ def cardrgi_redmine(redmine_instance, issue, work_dir, description):
                 print(forwardseq)
                 reverseseq = '{seqid}_R2_001.fastq.gz'.format(seqid=seqid)
                 #prepare command
-                cardrgiload_cmd = 'rgi load -i /mnt/nas2/databases/card-rgi/card.json --card_annotation /mnt/nas2/databases/card-rgi/card_database_v3.2.2.fasta --local'
+                cardrgiload_cmd = 'rgi load -i /mnt/nas2/databases/card-rgi-6/card.json --card_annotation /mnt/nas2/databases/card-rgi-6/card_database_v3.2.5.fasta --local'
                 outputfile = '{seqid}_rgiresults'.format(seqid=seqid)
                 cardrgi_cmd = 'rgi bwt -1 {forward} -2 {reverse} -a kma -o {outfile} -n 16 --local'.format(forward=forwardseq,reverse=reverseseq,
                                                                                                            outfile=outputfile)
@@ -231,7 +265,7 @@ def cardrgi_redmine(redmine_instance, issue, work_dir, description):
                 if file.endswith(".json"):
                     shutil.move(os.path.join(sequences_folder,file), os.path.join(json_folder, file))
 
-            #add the filename (which is the seqid) to the first column in all of the res files, then concatenate into a single output csv file
+            #add the filename (which is the seqid) to the first column in all of the report files, then concatenate into a single output csv file
             outputfile = os.path.join(cardrgi_folder, 'CARDRGI_gene_mapping_output.csv')
             with open(outputfile, 'w', newline='') as file_output:
                 csv_output = csv.writer(file_output, delimiter='\t')
@@ -275,6 +309,17 @@ def cardrgi_redmine(redmine_instance, issue, work_dir, description):
                             #row.insert(0,fname)
                             csv_output.writerow(row)
 
+            #write the csv files into an excel file so our window's users have easier viewing
+            cardexcelfile = os.path.join(cardrgi_folder, 'CARD_RGI_results_{}.xlsx'.format(issue.id))            
+            carddf = pandas.read_csv(os.path.join(cardrgi_folder, 'CARDRGI_gene_mapping_output.csv'), sep='\t')
+            cardalleledf = pandas.read_csv(os.path.join(cardrgi_folder, 'CARDRGI_allele_mapping_output.csv'), sep='\t')
+            #write them to output xlsx file
+            with pandas.ExcelWriter(cardexcelfile) as writer:
+                carddf.to_excel(cardexcelfile, sheet_name='Gene_mapping_results', index=False)
+                cardalleledf.to_excel(cardexcelfile, sheet_name='Allele_mapping_results', index=False)
+            #remove the csv files
+            os.remove(os.path.join(cardrgi_folder, 'CARDRGI_gene_mapping_output.csv'))
+            os.remove(os.path.join(cardrgi_folder, 'CARDRGI_allele_mapping_output.csv'))
 
         # Zip card-rgi output
         output_filename = 'card-rgi_output_{}'.format(issue.id)
@@ -283,20 +328,55 @@ def cardrgi_redmine(redmine_instance, issue, work_dir, description):
                                   output_filename=output_filename)
         zip_filepath += '.zip'
 
-        upload_successful = upload_to_ftp(local_file=zip_filepath)
-        # Prepare upload
-        if upload_successful:
-            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                          notes='CARD-RGI analysis complete!\n\n'
-                                                'Results are available at the following FTP address:\n'
-                                                'ftp://ftp.agr.gc.ca/outgoing/cfia-ac/{}'
-                                          .format(os.path.split(zip_filepath)[1]))
+        #Get the outputs uploaded
+        output_list = list()
+        output_dict = dict()
+        #upload the CARDRGI excel file
+        cardxlsxfilename = 'CARD_RGI_results_{}.xlsx'.format(issue.id)
+        output_dict['path'] = os.path.join(cardrgi_folder,cardxlsxfilename)
+        output_dict['filename'] = cardxlsxfilename
+        output_list.append(output_dict)
+        #and the zipfile
+        output_dict = dict()
+        output_dict['path'] = os.path.join(work_dir,output_filename)
+        output_dict['filename'] = output_filename
+        output_list.append(output_dict)
+
+
+        # Upload the zip file to Dropbox
+        download_link = upload_to_dropbox(
+            access_token=DROPBOX_ACCESS_TOKEN,
+            refresh_token=DROPBOX_REFRESH_TOKEN,
+            app_key=DROPBOX_APP_KEY,
+            app_secret=DROPBOX_APP_SECRET,
+            local_file_path=zip_filepath
+        )
+
+        if download_link:
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=2,
+                notes='CARD-RGI analysis complete!\n\n'
+                      'CARD-RGI version 6 with database v3.2.5\n\n'
+                      'Results are available at the following URL:\n'
+                      '{url}'.format(url=download_link)
+            )
         else:
-            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                          notes='Upload of result files was unsuccessful due to FTP connectivity '
-                                                'issues. '
-                                                'Please try again later.')
-        # Remove the zip file
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=2,
+                notes='Upload of results was unsuccessful due to '
+                'connectivity issues. Please try again later.'
+            )
+
+
+        #Upload attachments to the redmine issue    
+        redmine_instance.issue.update(resource_id=issue.id, 
+                                      uploads=output_list, status_id=4,
+                                      notes='CARD-RGI analysis complete!\n\n'
+                                            'CARD-RGI version 6 with database v3.2.5\n'
+                                            'Results are attached.'
+                                     )
         #os.remove(zip_filepath)
         #remove the sequences folder
         shutil.rmtree(sequences_folder)

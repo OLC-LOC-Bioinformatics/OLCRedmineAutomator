@@ -33,7 +33,7 @@ def ec_typer_redmine(redmine_instance, issue, work_dir, description):
 
         # Create folder to drop FASTQ files
         assemblies_folder = os.path.join(work_dir, 'assemblies')
-        os.mkdir(assemblies_folder)
+        os.makedirs(assemblies_folder, exist_ok=True)
 
         # Create output folder
         output_folder = os.path.join(work_dir, 'output')

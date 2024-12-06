@@ -66,7 +66,8 @@ def resfinder_redmine(redmine_instance, issue, work_dir, description):
                                       notes='ResFinder command:\n {cmd}'.format(cmd=cmd))
         os.system(cmd)
         # These unfortunate hard coded paths appear to be necessary
-        activate = 'source /home/ubuntu/miniconda3/bin/activate /mnt/nas2/virtual_environments/cowbat'
+        #activate = 'source /home/ubuntu/miniconda3/bin/activate /mnt/nas2/virtual_environments/cowbat'
+        activate = 'source /home/ubuntu/miniconda3/bin/activate /mnt/nas2/virtual_environments/dev/cowbat'
         # Run sipprverse with the necessary arguments
         mob_cmd = 'python -m genemethods.assemblypipeline.mobrecon -s {seqfolder} -r {targetfolder}' \
             .format(seqfolder=work_dir,

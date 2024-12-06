@@ -7,7 +7,15 @@ import sentry_sdk
 from automator_settings import SENTRY_DSN
 from amrsummary import before_send
 from nastools.nastools import retrieve_nas_files
-from externalretrieve import upload_to_ftp, check_fastas_present
+from externalretrieve import check_fastas_present
+# Dropbox
+from upload_to_dropbox import upload_to_dropbox
+from tokens import (
+    DROPBOX_ACCESS_TOKEN,
+    DROPBOX_APP_KEY, 
+    DROPBOX_APP_SECRET,
+    DROPBOX_REFRESH_TOKEN
+)
 
 @click.command()
 @click.option('--redmine_instance', help='Path to pickled Redmine API instance')
@@ -133,10 +141,31 @@ def psortb_redmine(redmine_instance, issue, work_dir, description):
         os.system(cmd)
 
         shutil.make_archive(report_dir, 'zip', report_dir)
-        upload_successful = upload_to_ftp(local_file=report_dir + '.zip')
-        redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                      notes='PsortB complete! Results available at: '
-                                            'ftp://ftp.agr.gc.ca/outgoing/cfia-ac/{}'.format(os.path.split(report_dir)[1] + '.zip'))
+                # Upload the zip file to Dropbox
+        download_link = upload_to_dropbox(
+            access_token=DROPBOX_ACCESS_TOKEN,
+            refresh_token=DROPBOX_REFRESH_TOKEN,
+            app_key=DROPBOX_APP_KEY,
+            app_secret=DROPBOX_APP_SECRET,
+            local_file_path=zip_filepath
+        )
+
+        if download_link:
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=4,
+                notes='PsortB analysis complete!\n\n'
+                      'Results are available at the following URL:\n'
+                      '{url}'.format(url=download_link)
+            )
+        else:
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=4,
+                notes='Upload of results was unsuccessful due to '
+                'connectivity issues. Please try again later.'
+            )
+        
         shutil.rmtree(assemblies_folder)
         shutil.rmtree(prokka_folder)
     except Exception as e:

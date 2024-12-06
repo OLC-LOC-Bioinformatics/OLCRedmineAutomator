@@ -30,11 +30,11 @@ def plasmidextractor_redmine(redmine_instance, issue, work_dir, description):
 
     # Create folder to drop FASTQ files
     raw_reads_folder = os.path.join(work_dir, 'raw_reads')
-    os.mkdir(raw_reads_folder)
+    os.makedirs(raw_reads_folder, exist_ok=True)
 
     # Create output folder
     output_folder = os.path.join(work_dir, 'output')
-    os.mkdir(output_folder)
+    os.makedirs(output_folder, exist_ok=True)
 
     # Extract FASTQ files.
     retrieve_nas_files(seqids=seqids, outdir=raw_reads_folder, filetype='fastq', copyflag=False)

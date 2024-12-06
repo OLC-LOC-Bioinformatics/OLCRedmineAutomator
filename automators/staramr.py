@@ -107,10 +107,7 @@ def staramr_redmine(redmine_instance, issue, work_dir, description):
         staramr_py = '/mnt/nas2/virtual_environments/staramr/bin/staramr'
         # List of organisms in the pointfinder database
         staramr_list = ['campylobacter', 'salmonella']
-        try:
-            os.mkdir(staramr_output_dir)
-        except FileExistsError:
-            pass
+        os.makedirs(stararm_output_dir, exist_ok=True)
 
         genus_seqid_dict = dict()
         for seqid in sorted(seqids):

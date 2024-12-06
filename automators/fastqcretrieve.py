@@ -25,19 +25,7 @@ def fastqcretrieve_redmine(redmine_instance, issue, work_dir, description):
     description = pickle.load(open(description, 'rb'))
 
     try:
-#        os.makedirs(os.path.join(work_dir, str(issue.id)))
-        # Variable to hold supplied arguments
-        #amino acid substitution models supported by automator
-        platforms = [
-            'miseq', 'nextseq'
-        ]
-
-        argument_dict = {
-            'run': str(),
-            'platform': 'miseq'
-        }
         # Parse description to figure out what SEQIDs we need to run on.
-#        seqrun = list()
         for item in description:
             item = item.upper()
             if 'RUN' in item:
@@ -46,7 +34,7 @@ def fastqcretrieve_redmine(redmine_instance, issue, work_dir, description):
             if 'PLATFORM' in item:
                 argument_dict['platform'] = item.split('=')[1].lower()
                 continue
-#            seqrun.append(item)
+            seqrun.append(item)
 
         # Warn the user if no runid was provided.
         # make folder in the redmine biorequest working directory
@@ -93,17 +81,23 @@ def fastqcretrieve_redmine(redmine_instance, issue, work_dir, description):
                                   output_filename=output_filename)
         zip_filepath += '.zip'
 
-        upload_successful = upload_to_ftp(local_file=zip_filepath)
+        sas_url = upload_to_ftp(local_file=zip_filepath)
 
-        if upload_successful:
-            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                          notes='Fastqc Retrieve process complete!\n\n'
-                                                'Results are available at the following FTP address:\n'
-                                                'ftp://ftp.agr.gc.ca/outgoing/cfia-ac/{l}'.format(l=os.path.split(zip_filepath)[1]))
+        if sas_url:
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=4,
+                notes='Fastqc Retrieve process complete!\n\n'
+                'Results are available at the following URL:\n'
+                '{url}'.format(url=sas_url),
+            )
         else:
-            redmine_instance.issue.update(resource_id=issue.id, status_id=4,
-                                          notes='Upload of result files was unsuccessful due to FTP connectivity issues. '
-                                                'Please try again later.')
+            redmine_instance.issue.update(
+                resource_id=issue.id,
+                status_id=4,
+                notes='Upload of result files was unsuccessful due to '
+                'connectivity issues. Please try again later.'
+            )
 
         # And finally, do some file cleanup.
         shutil.rmtree(new_folder)
